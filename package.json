@@ -1,24 +1,21 @@
 {
-  "name": "template-tanstack-start-convex",
-  "version": "0.0.3",
+  "name": "stamphog",
+  "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Template for TanStack Start projects.",
+  "description": "Realtime leaderboard for PR approval stamps in Slack.",
   "keywords": [],
-  "homepage": "https://solomou.dev",
+  "homepage": "https://posthog.com",
   "bugs": {
-    "url": "https://github.com/richardsolomou/template-tanstack-start-convex/issues",
-    "email": "richard@solomou.dev"
+    "url": "https://github.com/PostHog/stamphog/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/richardsolomou/template-tanstack-start-convex"
+    "url": "https://github.com/PostHog/stamphog"
   },
   "license": "MIT",
   "author": {
-    "name": "Richard Solomou",
-    "email": "richard@solomou.dev",
-    "url": "https://solomou.dev"
+    "name": "PostHog"
   },
   "scripts": {
     "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:convex\"",

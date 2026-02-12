@@ -24,9 +24,9 @@ export const Route = createRootRouteWithContext<{
         content: "width=device-width, initial-scale=1",
       },
       ...seo({
-        title: "template-tanstack-start-convex",
+        title: "StampHog",
         description:
-          "🚀⚡ Full-stack template with TanStack Start and Convex. Includes SSR, real-time sync, and optimistic updates.",
+          "Realtime leaderboard for PR approval stamps in the PostHog Slack channel.",
       }),
     ],
     links: [

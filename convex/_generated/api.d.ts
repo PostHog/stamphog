@@ -8,7 +8,9 @@
  * @module
  */
 
-import type * as todos from "../todos.js";
+import type * as http from "../http.js";
+import type * as slack from "../slack.js";
+import type * as stamps from "../stamps.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +19,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  todos: typeof todos;
+  http: typeof http;
+  slack: typeof slack;
+  stamps: typeof stamps;
 }>;
 
 /**
