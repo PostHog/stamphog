@@ -44,14 +44,14 @@ function Home() {
       <header className="animate-fade-up">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <h1 className="font-bold text-lg text-zinc-100 tracking-tight">
+            <h1 className="font-bold text-foreground text-lg tracking-tight">
               StampHog
             </h1>
             <Badge
-              className="gap-1.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              className="gap-1.5 border-chart-2/20 bg-chart-2/10 text-chart-2"
               variant="outline"
             >
-              <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-emerald-400" />
+              <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-chart-2" />
               Live
             </Badge>
           </div>
@@ -60,7 +60,7 @@ function Home() {
             value={String(windowDays)}
           >
             <SelectTrigger
-              className="h-7 w-auto border-zinc-800 bg-zinc-900 text-xs text-zinc-400"
+              className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
               size="sm"
             >
               <SelectValue />
@@ -74,7 +74,9 @@ function Home() {
             </SelectContent>
           </Select>
         </div>
-        <p className="mt-1 text-sm text-zinc-500">PR approval leaderboard</p>
+        <p className="mt-1 text-muted-foreground text-sm">
+          PR approval leaderboard
+        </p>
       </header>
 
       {/* Stats */}
@@ -117,11 +119,11 @@ function Home() {
         </TabsContent>
       </Tabs>
 
-      <Separator className="my-10 bg-zinc-800/60" />
+      <Separator className="my-10 bg-border" />
 
       {/* Recent Activity */}
       <section>
-        <h2 className="mb-3 font-semibold text-xs text-zinc-600 uppercase tracking-wider">
+        <h2 className="mb-3 font-semibold text-muted-foreground/70 text-xs uppercase tracking-wider">
           Recent Activity
         </h2>
         <RecentEventsList />
@@ -133,10 +135,10 @@ function Home() {
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="font-bold font-mono text-2xl text-zinc-100 tabular-nums">
+      <span className="font-bold font-mono text-2xl text-foreground tabular-nums">
         {value}
       </span>
-      <span className="text-sm text-zinc-500">{label}</span>
+      <span className="text-muted-foreground text-sm">{label}</span>
     </div>
   );
 }

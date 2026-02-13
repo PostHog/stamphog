@@ -46,7 +46,9 @@ export function RecentEventsList() {
 
   if (events.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-zinc-600">No activity yet</p>
+      <p className="py-10 text-center text-muted-foreground text-sm">
+        No activity yet
+      </p>
     );
   }
 
@@ -54,14 +56,14 @@ export function RecentEventsList() {
     <div className="space-y-0.5">
       {events.map((ev, i) => (
         <div
-          className="flex animate-fade-up items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-zinc-900/40"
+          className="flex animate-fade-up items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-accent/40"
           key={ev._id}
           style={{ animationDelay: `${i * 25}ms` }}
         >
           <Avatar fallback={ev.giverDisplayName} imageUrl={ev.giverImageUrl} />
           <svg
             aria-hidden="true"
-            className="h-3 w-3 shrink-0 text-zinc-700"
+            className="h-3 w-3 shrink-0 text-muted-foreground/50"
             fill="none"
             viewBox="0 0 12 12"
           >
@@ -77,12 +79,12 @@ export function RecentEventsList() {
             fallback={ev.requesterDisplayName}
             imageUrl={ev.requesterImageUrl}
           />
-          <p className="min-w-0 flex-1 truncate text-sm text-zinc-500">
-            <span className="text-zinc-300">
+          <p className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
+            <span className="text-secondary-foreground">
               {firstName(ev.giverDisplayName)}
             </span>
             {" stamped "}
-            <span className="text-zinc-300">
+            <span className="text-secondary-foreground">
               {firstName(ev.requesterDisplayName)}
             </span>
           </p>
@@ -91,7 +93,7 @@ export function RecentEventsList() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <a
-                    className="font-mono text-[11px] text-zinc-600 transition-colors hover:text-zinc-400"
+                    className="font-mono text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
                     href={ev.prUrl}
                     rel="noopener noreferrer"
                     target="_blank"
@@ -102,7 +104,7 @@ export function RecentEventsList() {
                 <TooltipContent>{ev.prUrl}</TooltipContent>
               </Tooltip>
             )}
-            <span className="font-mono text-[11px] text-zinc-700 tabular-nums">
+            <span className="font-mono text-[11px] text-muted-foreground/50 tabular-nums">
               {timeAgo(ev.occurredAt)}
             </span>
           </div>

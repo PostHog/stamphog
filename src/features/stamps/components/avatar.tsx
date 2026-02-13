@@ -18,9 +18,10 @@ const fallbackTextSizes = {
 } as const;
 
 const ringStyles = {
-  gold: "ring-2 ring-amber-400/60 ring-offset-1 ring-offset-zinc-950",
-  silver: "ring-2 ring-zinc-400/40 ring-offset-1 ring-offset-zinc-950",
-  bronze: "ring-2 ring-orange-500/40 ring-offset-1 ring-offset-zinc-950",
+  gold: "ring-2 ring-chart-1/60 ring-offset-1 ring-offset-background",
+  silver:
+    "ring-2 ring-muted-foreground/40 ring-offset-1 ring-offset-background",
+  bronze: "ring-2 ring-chart-4/40 ring-offset-1 ring-offset-background",
 } as const;
 
 export function Avatar({
@@ -45,7 +46,7 @@ export function Avatar({
       )}
       <AvatarFallback
         className={cn(
-          "bg-zinc-800 font-medium text-zinc-400",
+          "bg-muted font-medium text-muted-foreground",
           fallbackTextSizes[size]
         )}
       >

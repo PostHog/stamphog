@@ -60,11 +60,11 @@ export const Route = createRootRouteWithContext<{
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html className="dark" lang="en">
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-dvh bg-zinc-950 font-sans text-zinc-100 antialiased">
+      <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
         <TooltipProvider>{children}</TooltipProvider>
         <Scripts />
       </body>
