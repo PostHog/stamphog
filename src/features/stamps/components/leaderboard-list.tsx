@@ -1,3 +1,8 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 import type { LeaderboardRow } from "../types";
 import { Avatar } from "./avatar";
@@ -68,52 +73,58 @@ export function LeaderboardList({
           const score = getScore(row, scoreKey);
 
           return (
-            <div
-              className={cn(
-                "flex max-w-[160px] flex-1 animate-fade-up flex-col items-center rounded-xl",
-                isChampion
-                  ? "border border-amber-500/20 bg-zinc-900/80 px-3 pt-4 pb-5 shadow-amber-900/20 shadow-lg"
-                  : "border border-zinc-800/60 bg-zinc-900/40 px-2.5 pt-3 pb-3.5"
-              )}
-              key={row.actorId}
-              style={{
-                animationDelay: `${PODIUM_DELAYS[rank]}ms`,
-              }}
-            >
-              <span
-                className={cn(
-                  "mb-2.5 font-mono text-[10px] uppercase tracking-widest",
-                  medal.accent
-                )}
-              >
-                {rank === 1 ? "\u2605" : `#${rank}`}
-              </span>
-              <Avatar
-                fallback={row.displayName}
-                imageUrl={row.imageUrl}
-                ring={medal.ring}
-                size={isChampion ? "lg" : "md"}
-              />
-              <p
-                className={cn(
-                  "mt-2 max-w-full truncate",
-                  isChampion
-                    ? "font-semibold text-sm text-zinc-100"
-                    : "font-medium text-xs text-zinc-300"
-                )}
-              >
-                {firstName(row.displayName)}
-              </p>
-              <p
-                className={cn(
-                  "font-bold font-mono tabular-nums",
-                  isChampion ? "text-2xl" : "text-lg",
-                  medal.accent
-                )}
-              >
-                {score}
-              </p>
-            </div>
+            <Tooltip key={row.actorId}>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    "flex max-w-[160px] flex-1 animate-fade-up flex-col items-center rounded-xl",
+                    isChampion
+                      ? "border border-amber-500/20 bg-zinc-900/80 px-3 pt-4 pb-5 shadow-amber-900/20 shadow-lg"
+                      : "border border-zinc-800/60 bg-zinc-900/40 px-2.5 pt-3 pb-3.5"
+                  )}
+                  style={{
+                    animationDelay: `${PODIUM_DELAYS[rank]}ms`,
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "mb-2.5 font-mono text-[10px] uppercase tracking-widest",
+                      medal.accent
+                    )}
+                  >
+                    {rank === 1 ? "\u2605" : `#${rank}`}
+                  </span>
+                  <Avatar
+                    fallback={row.displayName}
+                    imageUrl={row.imageUrl}
+                    ring={medal.ring}
+                    size={isChampion ? "lg" : "md"}
+                  />
+                  <p
+                    className={cn(
+                      "mt-2 max-w-full truncate",
+                      isChampion
+                        ? "font-semibold text-sm text-zinc-100"
+                        : "font-medium text-xs text-zinc-300"
+                    )}
+                  >
+                    {firstName(row.displayName)}
+                  </p>
+                  <p
+                    className={cn(
+                      "font-bold font-mono tabular-nums",
+                      isChampion ? "text-2xl" : "text-lg",
+                      medal.accent
+                    )}
+                  >
+                    {score}
+                  </p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {row.displayName} &middot; {score} stamps
+              </TooltipContent>
+            </Tooltip>
           );
         })}
       </div>

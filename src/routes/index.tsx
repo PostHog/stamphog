@@ -1,5 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { Badge } from "~/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import { Separator } from "~/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
 import {
@@ -8,7 +18,6 @@ import {
   useLeaderboard,
 } from "~/features/stamps/queries";
 import { toLeaderboardRows } from "~/features/stamps/types";
-import { cn } from "~/lib/utils";
 
 const WINDOWS = [7, 14, 30, 60, 90] as const;
 
@@ -24,15 +33,10 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [windowDays, setWindowDays] = useState(30);
-  const [tab, setTab] = useState<"givers" | "requesters">("givers");
   const { data: leaderboard } = useLeaderboard(windowDays);
 
   const giverRows = toLeaderboardRows(leaderboard.givers);
   const requesterRows = toLeaderboardRows(leaderboard.requesters);
-  const rows = tab === "givers" ? giverRows : requesterRows;
-  const scoreKey =
-    tab === "givers" ? ("stampsGiven" as const) : ("stampsRequested" as const);
-  const tone = tab === "givers" ? ("amber" as const) : ("teal" as const);
 
   return (
     <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
@@ -43,22 +47,32 @@ function Home() {
             <h1 className="font-bold text-lg text-zinc-100 tracking-tight">
               StampHog
             </h1>
-            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-[10px] text-emerald-400">
+            <Badge
+              className="gap-1.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              variant="outline"
+            >
               <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-emerald-400" />
               Live
-            </span>
+            </Badge>
           </div>
-          <select
-            className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 outline-none transition-colors hover:border-zinc-700 hover:text-zinc-300"
-            onChange={(e) => setWindowDays(Number(e.target.value))}
-            value={windowDays}
+          <Select
+            onValueChange={(v) => setWindowDays(Number(v))}
+            value={String(windowDays)}
           >
-            {WINDOWS.map((d) => (
-              <option key={d} value={d}>
-                {d}-day
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              className="h-7 w-auto border-zinc-800 bg-zinc-900 text-xs text-zinc-400"
+              size="sm"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WINDOWS.map((d) => (
+                <SelectItem key={d} value={String(d)}>
+                  {d}-day
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <p className="mt-1 text-sm text-zinc-500">PR approval leaderboard</p>
       </header>
@@ -73,57 +87,40 @@ function Home() {
         <Stat label="PRs" value={leaderboard.totals.requests} />
       </div>
 
-      {/* Tab Switcher */}
-      <div
-        className="relative mt-8 flex animate-fade-up rounded-lg bg-zinc-900/70 p-1"
+      {/* Leaderboard Tabs */}
+      <Tabs
+        className="mt-8 animate-fade-up"
+        defaultValue="givers"
         style={{ animationDelay: "120ms" }}
       >
-        <div
-          className={cn(
-            "absolute top-1 bottom-1 rounded-md bg-zinc-800 transition-all duration-300 ease-out",
-            tab === "givers"
-              ? "right-[calc(50%+2px)] left-1"
-              : "right-1 left-[calc(50%+2px)]"
-          )}
-        />
-        <button
-          className={cn(
-            "relative z-10 flex-1 rounded-md py-2 font-medium text-sm transition-colors",
-            tab === "givers"
-              ? "text-zinc-100"
-              : "text-zinc-500 hover:text-zinc-400"
-          )}
-          onClick={() => setTab("givers")}
-          type="button"
-        >
-          Stamp Givers
-        </button>
-        <button
-          className={cn(
-            "relative z-10 flex-1 rounded-md py-2 font-medium text-sm transition-colors",
-            tab === "requesters"
-              ? "text-zinc-100"
-              : "text-zinc-500 hover:text-zinc-400"
-          )}
-          onClick={() => setTab("requesters")}
-          type="button"
-        >
-          Stamp Requesters
-        </button>
-      </div>
+        <TabsList className="w-full">
+          <TabsTrigger className="flex-1" value="givers">
+            Stamp Givers
+          </TabsTrigger>
+          <TabsTrigger className="flex-1" value="requesters">
+            Stamp Requesters
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="givers">
+          <LeaderboardList
+            rows={giverRows}
+            scoreKey="stampsGiven"
+            tone="amber"
+          />
+        </TabsContent>
+        <TabsContent value="requesters">
+          <LeaderboardList
+            rows={requesterRows}
+            scoreKey="stampsRequested"
+            tone="teal"
+          />
+        </TabsContent>
+      </Tabs>
 
-      {/* Leaderboard */}
-      <div className="mt-4">
-        <LeaderboardList
-          key={tab}
-          rows={rows}
-          scoreKey={scoreKey}
-          tone={tone}
-        />
-      </div>
+      <Separator className="my-10 bg-zinc-800/60" />
 
       {/* Recent Activity */}
-      <section className="mt-10">
+      <section>
         <h2 className="mb-3 font-semibold text-xs text-zinc-600 uppercase tracking-wider">
           Recent Activity
         </h2>

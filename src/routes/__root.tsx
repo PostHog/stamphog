@@ -8,6 +8,7 @@ import {
 import type * as React from "react";
 import { DefaultCatchBoundary } from "~/components/default-catch-boundary";
 import { NotFound } from "~/components/not-found";
+import { TooltipProvider } from "~/components/ui/tooltip";
 import { seo } from "~/lib/seo";
 import appCss from "~/styles/app.css?url";
 
@@ -64,7 +65,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-dvh bg-zinc-950 font-sans text-zinc-100 antialiased">
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Scripts />
       </body>
     </html>

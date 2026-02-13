@@ -1,12 +1,17 @@
+import {
+  AvatarFallback,
+  AvatarImage,
+  Avatar as ShadcnAvatar,
+} from "~/components/ui/avatar";
 import { cn } from "~/lib/utils";
 
-const sizes = {
-  sm: "h-7 w-7",
-  md: "h-9 w-9",
-  lg: "h-14 w-14",
+const sizeClasses = {
+  sm: "size-7",
+  md: "size-9",
+  lg: "size-14",
 } as const;
 
-const textSizes = {
+const fallbackTextSizes = {
   sm: "text-[10px]",
   md: "text-xs",
   lg: "text-lg",
@@ -26,35 +31,26 @@ export function Avatar({
 }: {
   imageUrl?: string;
   fallback: string;
-  size?: keyof typeof sizes;
+  size?: keyof typeof sizeClasses;
   ring?: keyof typeof ringStyles;
 }) {
-  const base = cn(
-    sizes[size],
-    "shrink-0 rounded-full",
-    ring && ringStyles[ring]
-  );
-
-  if (imageUrl) {
-    return (
-      <img
-        alt={fallback}
-        className={cn(base, "object-cover")}
-        referrerPolicy="no-referrer"
-        src={imageUrl}
-      />
-    );
-  }
-
   return (
-    <div
-      className={cn(
-        base,
-        "flex items-center justify-center bg-zinc-800 font-medium text-zinc-400",
-        textSizes[size]
+    <ShadcnAvatar className={cn(sizeClasses[size], ring && ringStyles[ring])}>
+      {imageUrl && (
+        <AvatarImage
+          alt={fallback}
+          referrerPolicy="no-referrer"
+          src={imageUrl}
+        />
       )}
-    >
-      {fallback.slice(0, 1).toUpperCase()}
-    </div>
+      <AvatarFallback
+        className={cn(
+          "bg-zinc-800 font-medium text-zinc-400",
+          fallbackTextSizes[size]
+        )}
+      >
+        {fallback.slice(0, 1).toUpperCase()}
+      </AvatarFallback>
+    </ShadcnAvatar>
   );
 }

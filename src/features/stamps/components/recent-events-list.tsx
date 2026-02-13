@@ -1,3 +1,8 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { useRecentStampEvents } from "../queries";
 import { Avatar } from "./avatar";
 
@@ -83,14 +88,19 @@ export function RecentEventsList() {
           </p>
           <div className="flex shrink-0 items-center gap-2.5">
             {ev.prUrl && (
-              <a
-                className="font-mono text-[11px] text-zinc-600 transition-colors hover:text-zinc-400"
-                href={ev.prUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                {prLabel(ev.prUrl)}
-              </a>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    className="font-mono text-[11px] text-zinc-600 transition-colors hover:text-zinc-400"
+                    href={ev.prUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    {prLabel(ev.prUrl)}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>{ev.prUrl}</TooltipContent>
+              </Tooltip>
             )}
             <span className="font-mono text-[11px] text-zinc-700 tabular-nums">
               {timeAgo(ev.occurredAt)}
