@@ -64,9 +64,26 @@ Optional args:
 npx convex run stamps.backfillChannel '{"channelId":"C0123456789","oldestTs":"1704067200","maxMessages":10000}'
 ```
 
+- To backfill multiple channels in one run:
+
+```bash
+npx convex run stamps.backfillChannels '{"channelIds":["C0123456789","C0987654321"],"oldestTs":"1704067200","maxMessagesPerChannel":10000}'
+```
+
 - `oldestTs` is a Slack timestamp string in seconds (`"1704067200"` = 2024-01-01 00:00:00 UTC).
 - `maxMessages` bounds scan cost (default `5000`, max `50000`).
+- `maxMessagesPerChannel` is the same bound but applied to each channel in `backfillChannels`.
+- Backfill is hard-limited to the most recent `90` days. If `oldestTs` is older, it is clamped to the 90-day cutoff.
 - Backfill is idempotent via dedupe keys, so it is safe to rerun.
+
+## Data Retention
+
+To delete data older than 90 days (requests + stamp events) and remove actors
+with no remaining involvement:
+
+```bash
+npx convex run stamps.pruneDataOlderThanRetentionWindow '{}'
+```
 
 ## Scripts
 

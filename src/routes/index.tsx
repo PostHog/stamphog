@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
@@ -14,15 +15,22 @@ import { toLeaderboardRows } from "~/features/stamps/types";
 export const Route = createFileRoute("/")({
   loader: async (opts) => {
     await Promise.all([
-      opts.context.queryClient.ensureQueryData(leaderboardQuery),
+      opts.context.queryClient.ensureQueryData(leaderboardQuery()),
       opts.context.queryClient.ensureQueryData(recentStampEventsQuery),
     ]);
   },
   component: Home,
 });
 
+const LEADERBOARD_WINDOWS = [7, 14, 30, 60, 90] as const;
+
+function windowLabel(days: number) {
+  return `${days}-Day`;
+}
+
 function Home() {
-  const { data: leaderboard } = useLeaderboard();
+  const [windowDays, setWindowDays] = useState<number>(30);
+  const { data: leaderboard } = useLeaderboard(windowDays);
 
   const giverRows = toLeaderboardRows(leaderboard.givers);
   const requesterRows = toLeaderboardRows(leaderboard.requesters);
@@ -49,8 +57,32 @@ function Home() {
         <section>
           <Card className="border-zinc-800">
             <CardHeader className="border-zinc-800 border-b pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">30-Day Leaderboard</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-xl">
+                  {windowLabel(windowDays)} Leaderboard
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <label
+                    className="text-xs text-zinc-400"
+                    htmlFor="leaderboard-window"
+                  >
+                    Window
+                  </label>
+                  <select
+                    className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100"
+                    id="leaderboard-window"
+                    onChange={(event) =>
+                      setWindowDays(Number(event.target.value))
+                    }
+                    value={windowDays}
+                  >
+                    {LEADERBOARD_WINDOWS.map((days) => (
+                      <option key={days} value={days}>
+                        {windowLabel(days)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {leaderboard.totals.events > 0 && (
                   <p className="text-xs text-zinc-400">
                     {leaderboard.totals.stamps} stamps ·{" "}

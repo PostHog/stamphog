@@ -423,3 +423,153 @@ export const backfillChannel = action({
     return runSlackBackfill(ctx, args);
   },
 });
+
+export const backfillChannels = action({
+  args: {
+    channelIds: v.array(v.string()),
+    oldestTs: v.optional(v.string()),
+    maxMessagesPerChannel: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const uniqueChannelIds = Array.from(
+      new Set(
+        args.channelIds.map((channelId) => channelId.trim()).filter(Boolean)
+      )
+    );
+    if (uniqueChannelIds.length === 0) {
+      throw new Error(
+        "channelIds must include at least one non-empty channel id"
+      );
+    }
+
+    const summaries: Array<{
+      channelId: string;
+      scannedMessages: number;
+      qualifyingMessages: number;
+      createdEvents: number;
+      duplicateEvents: number;
+      createdRequests: number;
+      duplicateRequests: number;
+      skippedSelfReactions: number;
+      skippedMissingUrl: number;
+      skippedMissingAuthor: number;
+      skippedNoReactions: number;
+      skippedNoTrackedReactions: number;
+      messagesWithAnyReaction: number;
+      messagesWithTrackedReaction: number;
+      topAllReactionNames: Array<{ key: string; count: number }>;
+      topTrackedReactionNames: Array<{ key: string; count: number }>;
+      topUntrackedReactionNames: Array<{ key: string; count: number }>;
+      qualifyingUrlHosts: Array<{ key: string; count: number }>;
+      trackedEmojiSet: string[];
+    }> = [];
+
+    const failures: Array<{ channelId: string; error: string }> = [];
+    let totalScannedMessages = 0;
+    let totalCreatedEvents = 0;
+    let totalDuplicateEvents = 0;
+    let totalCreatedRequests = 0;
+    let totalDuplicateRequests = 0;
+
+    for (const channelId of uniqueChannelIds) {
+      try {
+        const summary = await runSlackBackfill(ctx, {
+          channelId,
+          oldestTs: args.oldestTs,
+          maxMessages: args.maxMessagesPerChannel,
+        });
+
+        summaries.push(summary);
+        totalScannedMessages += summary.scannedMessages;
+        totalCreatedEvents += summary.createdEvents;
+        totalDuplicateEvents += summary.duplicateEvents;
+        totalCreatedRequests += summary.createdRequests;
+        totalDuplicateRequests += summary.duplicateRequests;
+      } catch (error) {
+        failures.push({
+          channelId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return {
+      requestedChannels: uniqueChannelIds.length,
+      succeededChannels: summaries.length,
+      failedChannels: failures.length,
+      totals: {
+        scannedMessages: totalScannedMessages,
+        createdEvents: totalCreatedEvents,
+        duplicateEvents: totalDuplicateEvents,
+        createdRequests: totalCreatedRequests,
+        duplicateRequests: totalDuplicateRequests,
+      },
+      summaries,
+      failures,
+    };
+  },
+});
+
+const DATA_RETENTION_DAYS = 90;
+
+export const pruneDataOlderThanRetentionWindow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoffMs = Date.now() - DATA_RETENTION_DAYS * DAY_MS;
+
+    const [staleRequests, staleEvents] = await Promise.all([
+      ctx.db
+        .query("requests")
+        .withIndex("by_occurred_at", (q) => q.lt("occurredAt", cutoffMs))
+        .collect(),
+      ctx.db
+        .query("stampEvents")
+        .withIndex("by_occurred_at", (q) => q.lt("occurredAt", cutoffMs))
+        .collect(),
+    ]);
+
+    for (const request of staleRequests) {
+      await ctx.db.delete(request._id);
+    }
+    for (const event of staleEvents) {
+      await ctx.db.delete(event._id);
+    }
+
+    const [remainingRequests, remainingEvents, actors] = await Promise.all([
+      ctx.db.query("requests").collect(),
+      ctx.db.query("stampEvents").collect(),
+      ctx.db.query("actors").collect(),
+    ]);
+
+    const activeActorIds = new Set<string>();
+    for (const request of remainingRequests) {
+      activeActorIds.add(request.requesterId);
+    }
+    for (const event of remainingEvents) {
+      activeActorIds.add(event.giverId);
+      activeActorIds.add(event.requesterId);
+    }
+
+    let deletedActors = 0;
+    for (const actor of actors) {
+      if (activeActorIds.has(actor.actorId)) {
+        continue;
+      }
+      await ctx.db.delete(actor._id);
+      deletedActors += 1;
+    }
+
+    return {
+      retentionDays: DATA_RETENTION_DAYS,
+      cutoffMs,
+      deletedRequests: staleRequests.length,
+      deletedStampEvents: staleEvents.length,
+      deletedActors,
+      remaining: {
+        requests: remainingRequests.length,
+        stampEvents: remainingEvents.length,
+        actors: actors.length - deletedActors,
+      },
+    };
+  },
+});

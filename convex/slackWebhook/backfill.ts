@@ -14,6 +14,7 @@ import {
 
 const DEFAULT_MAX_MESSAGES = 5000;
 const MAX_BACKFILL_MESSAGES = 50_000;
+const BACKFILL_WINDOW_DAYS = 90;
 const PAGE_SIZE = 200;
 
 interface BackfillArgs {
@@ -100,6 +101,24 @@ function boundedMaxMessages(maxMessages: number | undefined) {
       Math.floor(maxMessages ?? DEFAULT_MAX_MESSAGES)
     )
   );
+}
+
+function backfillCutoffTsSeconds() {
+  const cutoffMs = Date.now() - BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return String(Math.floor(cutoffMs / 1000));
+}
+
+function effectiveOldestTs(userOldestTs: string | undefined) {
+  const cutoffTs = backfillCutoffTsSeconds();
+  if (!userOldestTs) {
+    return cutoffTs;
+  }
+  const requested = Number(userOldestTs);
+  const cutoff = Number(cutoffTs);
+  if (!Number.isFinite(requested) || requested < cutoff) {
+    return cutoffTs;
+  }
+  return userOldestTs;
 }
 
 function buildSummary(args: {
@@ -353,6 +372,7 @@ export async function runSlackBackfill(ctx: ActionCtx, args: BackfillArgs) {
   }
 
   const maxMessages = boundedMaxMessages(args.maxMessages);
+  const oldestTs = effectiveOldestTs(args.oldestTs);
   const trackedStampEmojis = getStampEmojiSet();
   const state = createBackfillState();
   const userCache = new Map<string, SlackUserSummary>();
@@ -390,7 +410,7 @@ export async function runSlackBackfill(ctx: ActionCtx, args: BackfillArgs) {
       botToken,
       channelId: args.channelId,
       cursor,
-      oldestTs: args.oldestTs,
+      oldestTs,
     });
 
     if (page.messages.length === 0) {
@@ -416,6 +436,13 @@ export async function runSlackBackfill(ctx: ActionCtx, args: BackfillArgs) {
     trackedStampEmojis,
   });
 
+  const requestedOldestTs = args.oldestTs ?? null;
+  const appliedOldestTs = oldestTs;
   console.log("stamphog backfill summary", JSON.stringify(summary));
-  return summary;
+  return {
+    ...summary,
+    requestedOldestTs,
+    appliedOldestTs,
+    backfillWindowDays: BACKFILL_WINDOW_DAYS,
+  };
 }
