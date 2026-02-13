@@ -158,7 +158,7 @@ export function LeaderboardList({
                               cfg.scoreClass,
                               cfg.accent
                             )}
-                            initial={{ scale: 1.3, color: "#fff" }}
+                            initial={{ scale: 1.3 }}
                             key={score}
                             transition={{ duration: 0.3 }}
                           >

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { ModeToggle } from "~/components/mode-toggle";
 import {
   Select,
   SelectContent,
@@ -56,24 +57,27 @@ function Home() {
               StampHog
             </h1>
           </div>
-          <Select
-            onValueChange={(v) => setWindowDays(Number(v))}
-            value={String(windowDays)}
-          >
-            <SelectTrigger
-              className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
-              size="sm"
+          <div className="flex items-center gap-2">
+            <Select
+              onValueChange={(v) => setWindowDays(Number(v))}
+              value={String(windowDays)}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {WINDOWS.map((d) => (
-                <SelectItem key={d} value={String(d)}>
-                  {d}-day
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
+                size="sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WINDOWS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    {d}-day
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ModeToggle />
+          </div>
         </div>
         <p className="mt-1 text-muted-foreground text-sm">
           PR approval leaderboard

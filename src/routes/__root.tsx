@@ -8,13 +8,16 @@ import {
 import type * as React from "react";
 import { DefaultCatchBoundary } from "~/components/default-catch-boundary";
 import { NotFound } from "~/components/not-found";
+import { ThemeProvider } from "~/components/theme-provider";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { seo } from "~/lib/seo";
+import { getTheme } from "~/lib/theme";
 import appCss from "~/styles/app.css?url";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
+  loader: () => getTheme(),
   head: () => ({
     meta: [
       {
@@ -59,13 +62,16 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const theme = Route.useLoaderData();
   return (
-    <html className="dark" lang="en">
+    <html className={theme === "system" ? "" : theme} lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
-        <TooltipProvider>{children}</TooltipProvider>
+        <ThemeProvider theme={theme}>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>
