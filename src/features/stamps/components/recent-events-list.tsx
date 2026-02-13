@@ -1,3 +1,4 @@
+import { usePostHog } from "posthog-js/react";
 import {
   Tooltip,
   TooltipContent,
@@ -42,6 +43,7 @@ function firstName(name: string): string {
 }
 
 export function RecentEventsList() {
+  const posthog = usePostHog();
   const { data: events } = useRecentStampEvents();
 
   if (events.length === 0) {
@@ -52,41 +54,55 @@ export function RecentEventsList() {
     );
   }
 
+  const handlePrLinkClick = (prUrl: string, eventType: "stamp" | "request") => {
+    const gh = prUrl.match(GITHUB_PR_URL);
+    posthog.capture("pr_link_clicked", {
+      pr_url: prUrl,
+      event_type: eventType,
+      repo: gh?.[1],
+      pr_number: gh?.[2] ? Number(gh[2]) : undefined,
+    });
+  };
+
   return (
     <div className="space-y-0.5">
-      {events.map((ev, i) => (
-        <div
-          className="flex animate-fade-up items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-accent/40"
-          key={ev._id}
-          style={{ animationDelay: `${i * 25}ms` }}
-        >
-          {ev.type === "stamp" ? (
-            <StampEvent ev={ev} />
-          ) : (
-            <RequestEvent ev={ev} />
-          )}
-          <div className="flex shrink-0 items-center gap-2.5">
-            {ev.prUrl && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    className="font-mono text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
-                    href={ev.prUrl}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    {prLabel(ev.prUrl)}
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent>{ev.prUrl}</TooltipContent>
-              </Tooltip>
+      {events.map((ev, i) => {
+        const prUrl = ev.prUrl;
+        return (
+          <div
+            className="flex animate-fade-up items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-accent/40"
+            key={ev._id}
+            style={{ animationDelay: `${i * 25}ms` }}
+          >
+            {ev.type === "stamp" ? (
+              <StampEvent ev={ev} />
+            ) : (
+              <RequestEvent ev={ev} />
             )}
-            <span className="font-mono text-[11px] text-muted-foreground/50 tabular-nums">
-              {timeAgo(ev.occurredAt)}
-            </span>
+            <div className="flex shrink-0 items-center gap-2.5">
+              {prUrl && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      className="font-mono text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+                      href={prUrl}
+                      onClick={() => handlePrLinkClick(prUrl, ev.type)}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      {prLabel(prUrl)}
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>{prUrl}</TooltipContent>
+                </Tooltip>
+              )}
+              <span className="font-mono text-[11px] text-muted-foreground/50 tabular-nums">
+                {timeAgo(ev.occurredAt)}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

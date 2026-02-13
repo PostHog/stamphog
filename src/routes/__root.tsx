@@ -1,10 +1,12 @@
 /// <reference types="vite/client" />
+
 import type { QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { PostHogProvider } from "posthog-js/react";
 import type * as React from "react";
 import { DefaultCatchBoundary } from "~/components/default-catch-boundary";
 import { NotFound } from "~/components/not-found";
@@ -80,9 +82,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         )}
       </head>
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
-        <ThemeProvider theme={theme}>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ThemeProvider>
+        <PostHogProvider
+          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY}
+          options={{
+            api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+            defaults: "2025-05-24",
+            capture_exceptions: true,
+            debug: import.meta.env.DEV,
+          }}
+        >
+          <ThemeProvider theme={theme}>
+            <TooltipProvider>{children}</TooltipProvider>
+          </ThemeProvider>
+        </PostHogProvider>
         <Scripts />
       </body>
     </html>
