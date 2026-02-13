@@ -1,4 +1,4 @@
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
 import {
   buildReactionDedupeKey,
@@ -50,7 +50,7 @@ export async function handleSlackMessageEvent(
     slackUserId: requesterId,
   });
 
-  const result = await ctx.runMutation(api.stamps.ingestRequestMessage, {
+  const result = await ctx.runMutation(internal.stamps.ingestRequestMessage, {
     requesterId,
     requesterDisplayName: requester.displayName,
     requesterImageUrl: requester.imageUrl,
@@ -109,7 +109,7 @@ export async function handleSlackReactionEvent(
     slackUserId: requesterId,
   });
 
-  await ctx.runMutation(api.stamps.ingestRequestMessage, {
+  await ctx.runMutation(internal.stamps.ingestRequestMessage, {
     requesterId,
     requesterDisplayName: requester.displayName,
     requesterImageUrl: requester.imageUrl,
@@ -129,7 +129,7 @@ export async function handleSlackReactionEvent(
   const source = `slack:reaction:${normalizedReaction}`;
 
   if (event.type === "reaction_removed") {
-    const result = await ctx.runMutation(api.stamps.removeReactionStamp, {
+    const result = await ctx.runMutation(internal.stamps.removeReactionStamp, {
       dedupeKey,
       giverId,
       requesterId,
@@ -150,7 +150,7 @@ export async function handleSlackReactionEvent(
     slackUserId: giverId,
   });
 
-  const result = await ctx.runMutation(api.stamps.ingestReactionStamp, {
+  const result = await ctx.runMutation(internal.stamps.ingestReactionStamp, {
     giverId,
     requesterId,
     giverDisplayName: giver.displayName,

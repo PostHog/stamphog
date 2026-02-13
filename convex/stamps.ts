@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import {
   action,
+  internalMutation,
   type MutationCtx,
-  mutation,
   type QueryCtx,
   query,
 } from "./_generated/server";
@@ -114,7 +114,7 @@ function resolveActorProfile(
   return actorMap.get(actorId) ?? { displayName: actorId };
 }
 
-export const ingestRequestMessage = mutation({
+export const ingestRequestMessage = internalMutation({
   args: {
     requesterId: v.string(),
     requesterDisplayName: v.optional(v.string()),
@@ -158,7 +158,7 @@ export const ingestRequestMessage = mutation({
   },
 });
 
-export const ingestReactionStamp = mutation({
+export const ingestReactionStamp = internalMutation({
   args: {
     giverId: v.string(),
     requesterId: v.string(),
@@ -211,7 +211,7 @@ export const ingestReactionStamp = mutation({
   },
 });
 
-export const removeReactionStamp = mutation({
+export const removeReactionStamp = internalMutation({
   args: {
     dedupeKey: v.string(),
     giverId: v.string(),
@@ -454,7 +454,7 @@ export const backfill = action({
 
 const DATA_RETENTION_DAYS = 90;
 
-export const pruneDataOlderThanRetentionWindow = mutation({
+export const pruneDataOlderThanRetentionWindow = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoffMs = Date.now() - DATA_RETENTION_DAYS * DAY_MS;

@@ -1,4 +1,4 @@
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
 import {
   buildReactionDedupeKey,
@@ -166,7 +166,7 @@ async function ingestRequestForMessage(
 ) {
   const requester = await runtime.getUserSummary(requesterId);
   const requestResult = await runtime.ctx.runMutation(
-    api.stamps.ingestRequestMessage,
+    internal.stamps.ingestRequestMessage,
     {
       requesterId,
       requesterDisplayName: requester.displayName,
@@ -218,7 +218,7 @@ async function ingestTrackedReactionUsers(args: {
     });
 
     const result = await args.runtime.ctx.runMutation(
-      api.stamps.ingestReactionStamp,
+      internal.stamps.ingestReactionStamp,
       {
         giverId,
         requesterId: args.requesterId,

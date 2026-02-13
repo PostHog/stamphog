@@ -19,6 +19,11 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const rawBody = await request.text();
 
+    const signatureError = await verifySlackWebhookSignature(request, rawBody);
+    if (signatureError) {
+      return signatureError;
+    }
+
     let payload: unknown;
     try {
       payload = JSON.parse(rawBody);
@@ -30,11 +35,6 @@ http.route({
 
     if (envelope.type === "url_verification" && envelope.challenge) {
       return new Response(envelope.challenge, { status: 200 });
-    }
-
-    const signatureError = await verifySlackWebhookSignature(request, rawBody);
-    if (signatureError) {
-      return signatureError;
     }
 
     if (envelope.type !== "event_callback" || !envelope.event) {

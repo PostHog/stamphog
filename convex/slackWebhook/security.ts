@@ -3,13 +3,13 @@ function secureCompare(a: string, b: string) {
     return false;
   }
 
-  for (let index = 0; index < a.length; index += 1) {
-    if (a.charCodeAt(index) !== b.charCodeAt(index)) {
-      return false;
-    }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    // biome-ignore lint/suspicious/noBitwiseOperators: constant-time comparison requires bitwise ops
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
 
-  return true;
+  return mismatch === 0;
 }
 
 async function signSlackPayload(secret: string, payload: string) {

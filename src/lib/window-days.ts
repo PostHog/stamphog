@@ -11,5 +11,8 @@ export const getWindowDays = createServerFn().handler(async () => {
 });
 
 export const setWindowDays = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => Number(input))
+  .inputValidator((input: unknown) => {
+    const n = Math.floor(Number(input));
+    return Number.isFinite(n) ? Math.max(1, Math.min(90, n)) : DEFAULT;
+  })
   .handler(async ({ data }) => setCookie(COOKIE_KEY, String(data)));
