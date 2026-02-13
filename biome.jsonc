@@ -4,7 +4,18 @@
   "linter": {
     "rules": {
       "suspicious": {
-        "noConsole": "off"
+        "noConsole": "off",
+        "useAwait": "off"
+      },
+      "performance": {
+        "noBarrelFile": "off",
+        "noNamespaceImport": "off"
+      },
+      "correctness": {
+        "useImageSize": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       }
     }
   }

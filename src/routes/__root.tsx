@@ -63,7 +63,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="dark min-h-dvh font-sans text-foreground antialiased">
+      <body className="min-h-dvh bg-zinc-950 font-sans text-zinc-100 antialiased">
         {children}
         <Scripts />
       </body>

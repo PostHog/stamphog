@@ -8,7 +8,7 @@ const TRACKED_STAMP_EMOJIS = [
   "white_tick",
 ];
 
-type SlackUserProfile = {
+interface SlackUserProfile {
   display_name?: string;
   display_name_normalized?: string;
   real_name?: string;
@@ -18,9 +18,9 @@ type SlackUserProfile = {
   image_48?: string;
   image_72?: string;
   image_192?: string;
-};
+}
 
-type SlackUserInfoResponse = {
+interface SlackUserInfoResponse {
   ok?: boolean;
   error?: string;
   user?: {
@@ -29,28 +29,33 @@ type SlackUserInfoResponse = {
     real_name?: string;
     profile?: SlackUserProfile;
   };
-};
+}
 
-export type SlackUserSummary = {
+export interface SlackUserSummary {
   slackUserId: string;
   displayName: string;
   imageUrl?: string;
-};
+}
 
-export type SlackReaction = { name?: string; users?: string[] };
-export type SlackHistoryMessage = {
+export interface SlackReaction {
+  name?: string;
+  users?: string[];
+}
+export interface SlackHistoryMessage {
   ts?: string;
+  thread_ts?: string;
+  reply_count?: number;
   user?: string;
   text?: string;
   reactions?: SlackReaction[];
-};
+}
 
-type SlackHistoryResponse = {
+interface SlackHistoryResponse {
   ok?: boolean;
   error?: string;
   messages?: SlackHistoryMessage[];
   response_metadata?: { next_cursor?: string };
-};
+}
 
 export function normalizeEmoji(emoji: string) {
   return emoji.replace(COLON_REGEX, "").trim().toLowerCase();
@@ -133,7 +138,7 @@ export async function fetchSlackUserSummary(args: {
     }
   );
   const body = (await response.json()) as SlackUserInfoResponse;
-  if (!response.ok || !body.ok || !body.user) {
+  if (!(response.ok && body.ok && body.user)) {
     console.log("stamphog users.info lookup failed", {
       slackUserId: args.slackUserId,
       httpOk: response.ok,
@@ -171,7 +176,7 @@ export async function fetchSlackMessageAtTimestamp(args: {
     }
   );
   const body = (await response.json()) as SlackHistoryResponse;
-  if (!response.ok || !body.ok) {
+  if (!(response.ok && body.ok)) {
     return null;
   }
   return body.messages?.[0];
@@ -210,6 +215,79 @@ export async function fetchSlackHistoryPage(args: {
   };
 }
 
+async function fetchSlackThreadPage(args: {
+  botToken: string;
+  channelId: string;
+  threadTs: string;
+  cursor?: string;
+}) {
+  const params = new URLSearchParams({
+    channel: args.channelId,
+    ts: args.threadTs,
+    limit: "200",
+    inclusive: "true",
+  });
+  if (args.cursor) {
+    params.set("cursor", args.cursor);
+  }
+
+  const response = await fetch(
+    `https://slack.com/api/conversations.replies?${params.toString()}`,
+    {
+      headers: { Authorization: `Bearer ${args.botToken}` },
+    }
+  );
+  const body = (await response.json()) as SlackHistoryResponse;
+  return {
+    ok: Boolean(response.ok && body.ok),
+    error: body.error,
+    messages: body.messages ?? [],
+    nextCursor: body.response_metadata?.next_cursor ?? "",
+  };
+}
+
+export async function findQualifyingReviewUrlWithThreadFallback(args: {
+  botToken: string;
+  channelId: string;
+  messageTs: string;
+  messageText?: string;
+  includeThreadFallback?: boolean;
+}) {
+  const directUrl = extractQualifyingReviewUrl(args.messageText);
+  if (directUrl) {
+    return directUrl;
+  }
+  if (!args.includeThreadFallback) {
+    return undefined;
+  }
+
+  let cursor: string | undefined;
+  while (true) {
+    const page = await fetchSlackThreadPage({
+      botToken: args.botToken,
+      channelId: args.channelId,
+      threadTs: args.messageTs,
+      cursor,
+    });
+
+    if (!page.ok || page.messages.length === 0) {
+      return undefined;
+    }
+
+    for (const threadMessage of page.messages) {
+      const url = extractQualifyingReviewUrl(threadMessage.text);
+      if (url) {
+        return url;
+      }
+    }
+
+    if (!page.nextCursor) {
+      return undefined;
+    }
+    cursor = page.nextCursor;
+  }
+}
+
 export function buildReactionDedupeKey(args: {
   channelId: string;
   messageTs: string;
@@ -217,4 +295,11 @@ export function buildReactionDedupeKey(args: {
   giverSlackId: string;
 }) {
   return `slack:reaction:${args.channelId}:${args.messageTs}:${args.reaction}:${args.giverSlackId}`;
+}
+
+export function buildRequestDedupeKey(args: {
+  channelId: string;
+  messageTs: string;
+}) {
+  return `slack:request:${args.channelId}:${args.messageTs}`;
 }

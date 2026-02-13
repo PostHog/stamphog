@@ -3,10 +3,16 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 
-@import "@ras-sh/ui/globals.css";
-@source "../../node_modules/@ras-sh/ui";
-
 @theme inline {
   --font-sans: "Geist Variable", sans-serif;
   --font-mono: "Geist Mono Variable", monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #09090b;
+  color: #f4f4f5;
 }

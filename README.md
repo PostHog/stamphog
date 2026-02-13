@@ -11,7 +11,7 @@ Built with [TanStack Start](https://tanstack.com/start) + [Convex](https://conve
   - top stamp givers
   - top stamp requesters
 - Exposes a Slack ingestion endpoint at `/slack/stamps`
-- Uses Slack `reaction_added` events only
+- Uses Slack message + reaction events
 
 ## Quick Start
 
@@ -28,6 +28,7 @@ pnpm dev
 2. Subscribe to bot event:
    - `reaction_added`
    - `reaction_removed`
+   - `message.channels` (and `message.groups` for private channels)
 3. Add OAuth scopes for reading message context:
    - `reactions:read`
    - `channels:history` (plus `groups:history` if private channels)
@@ -47,6 +48,7 @@ pnpm dev
 - `reviewer` / stamp giver = the user who added the reaction (`event.user`).
 - `requester` = the author of the reacted message (looked up via Slack API).
 - Non-tracked emojis, non-`reaction_added` events, or messages without a qualifying URL are ignored.
+- Qualifying request messages are tracked even before any stamp reaction, so requesters can appear with `0` stamps.
 
 ## Backfill Existing History
 

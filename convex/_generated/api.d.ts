@@ -10,6 +10,10 @@
 
 import type * as http from "../http.js";
 import type * as slack from "../slack.js";
+import type * as slackWebhook_backfill from "../slackWebhook/backfill.js";
+import type * as slackWebhook_handlers from "../slackWebhook/handlers.js";
+import type * as slackWebhook_security from "../slackWebhook/security.js";
+import type * as slackWebhook_types from "../slackWebhook/types.js";
 import type * as stamps from "../stamps.js";
 
 import type {
@@ -21,6 +25,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   http: typeof http;
   slack: typeof slack;
+  "slackWebhook/backfill": typeof slackWebhook_backfill;
+  "slackWebhook/handlers": typeof slackWebhook_handlers;
+  "slackWebhook/security": typeof slackWebhook_security;
+  "slackWebhook/types": typeof slackWebhook_types;
   stamps: typeof stamps;
 }>;
 

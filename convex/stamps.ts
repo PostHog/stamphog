@@ -1,26 +1,176 @@
 import { v } from "convex/values";
-import { api } from "./_generated/api";
-import { action, mutation, query } from "./_generated/server";
 import {
-  buildReactionDedupeKey,
-  extractQualifyingReviewUrl,
-  fetchSlackHistoryPage,
-  fetchSlackUserSummary,
-  getStampEmojiSet,
-  normalizeEmoji,
-  type SlackUserSummary,
-} from "./slack";
+  action,
+  type MutationCtx,
+  mutation,
+  type QueryCtx,
+  query,
+} from "./_generated/server";
+import { runSlackBackfill } from "./slackWebhook/backfill";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_LEADERBOARD_LIMIT = 25;
+const DEFAULT_RECENT_EVENTS_LIMIT = 20;
+const MAX_RESULTS_LIMIT = 100;
+
+interface ActorProfile {
+  displayName: string;
+  imageUrl?: string;
+}
+
+export interface GiverAggregate {
+  actorId: string;
+  displayName: string;
+  imageUrl?: string;
+  stampsGiven: number;
+  approvalsGiven: number;
+}
+
+export interface RequesterAggregate {
+  actorId: string;
+  displayName: string;
+  imageUrl?: string;
+  requestsPosted: number;
+  stampsRequested: number;
+  approvalsReceived: number;
+}
+
+function clampLimit(value: number | undefined, fallback: number) {
+  return Math.max(
+    1,
+    Math.min(MAX_RESULTS_LIMIT, Math.floor(value ?? fallback))
+  );
+}
+
+function getSinceTimestamp(windowDays: number | undefined) {
+  if (!(windowDays && windowDays > 0)) {
+    return undefined;
+  }
+  return Date.now() - Math.floor(windowDays) * DAY_MS;
+}
+
+function sortByGivenStamps(a: GiverAggregate, b: GiverAggregate) {
+  return b.stampsGiven - a.stampsGiven || b.approvalsGiven - a.approvalsGiven;
+}
+
+function sortByRequestedStamps(a: RequesterAggregate, b: RequesterAggregate) {
+  return (
+    b.stampsRequested - a.stampsRequested ||
+    b.approvalsReceived - a.approvalsReceived ||
+    b.requestsPosted - a.requestsPosted
+  );
+}
+
+async function upsertActorProfile(
+  ctx: MutationCtx,
+  args: {
+    actorId: string;
+    displayName?: string;
+    imageUrl?: string;
+  }
+) {
+  const existing = await ctx.db
+    .query("actors")
+    .withIndex("by_actor_id", (q) => q.eq("actorId", args.actorId))
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      displayName: args.displayName ?? existing.displayName,
+      imageUrl: args.imageUrl ?? existing.imageUrl,
+      updatedAt: Date.now(),
+    });
+    return;
+  }
+
+  await ctx.db.insert("actors", {
+    actorId: args.actorId,
+    displayName: args.displayName ?? args.actorId,
+    imageUrl: args.imageUrl,
+    updatedAt: Date.now(),
+  });
+}
+
+async function getActorProfileMap(
+  ctx: QueryCtx
+): Promise<Map<string, ActorProfile>> {
+  const actors = await ctx.db.query("actors").collect();
+  const actorMap = new Map<string, ActorProfile>();
+
+  for (const actor of actors) {
+    actorMap.set(actor.actorId, {
+      displayName: actor.displayName,
+      imageUrl: actor.imageUrl,
+    });
+  }
+
+  return actorMap;
+}
+
+function resolveActorProfile(
+  actorMap: Map<string, ActorProfile>,
+  actorId: string
+): ActorProfile {
+  return actorMap.get(actorId) ?? { displayName: actorId };
+}
+
+export const ingestRequestMessage = mutation({
+  args: {
+    requesterId: v.string(),
+    requesterDisplayName: v.optional(v.string()),
+    requesterImageUrl: v.optional(v.string()),
+    channelId: v.string(),
+    messageRef: v.string(),
+    occurredAt: v.optional(v.number()),
+    prUrl: v.string(),
+    note: v.optional(v.string()),
+    dedupeKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await upsertActorProfile(ctx, {
+      actorId: args.requesterId,
+      displayName: args.requesterDisplayName,
+      imageUrl: args.requesterImageUrl,
+    });
+
+    const existingRequest = await ctx.db
+      .query("requests")
+      .withIndex("by_dedupe_key", (q) => q.eq("dedupeKey", args.dedupeKey))
+      .first();
+
+    if (existingRequest) {
+      await ctx.db.patch(existingRequest._id, {
+        prUrl: args.prUrl,
+        note: args.note,
+      });
+
+      return { duplicateSkipped: true, requestId: existingRequest._id };
+    }
+
+    const requestId = await ctx.db.insert("requests", {
+      requesterId: args.requesterId,
+      channelId: args.channelId,
+      messageRef: args.messageRef,
+      occurredAt: args.occurredAt ?? Date.now(),
+      prUrl: args.prUrl,
+      note: args.note,
+      dedupeKey: args.dedupeKey,
+    });
+
+    return { duplicateSkipped: false, requestId };
+  },
+});
+
 export const ingestReactionStamp = mutation({
   args: {
-    giverSlackId: v.string(),
-    requesterSlackId: v.string(),
+    giverId: v.string(),
+    requesterId: v.string(),
     giverDisplayName: v.optional(v.string()),
     requesterDisplayName: v.optional(v.string()),
     giverImageUrl: v.optional(v.string()),
     requesterImageUrl: v.optional(v.string()),
     reaction: v.string(),
+    source: v.optional(v.string()),
     occurredAt: v.optional(v.number()),
     channelId: v.string(),
     prUrl: v.optional(v.string()),
@@ -28,37 +178,40 @@ export const ingestReactionStamp = mutation({
     dedupeKey: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    await Promise.all([
+      upsertActorProfile(ctx, {
+        actorId: args.giverId,
+        displayName: args.giverDisplayName,
+        imageUrl: args.giverImageUrl,
+      }),
+      upsertActorProfile(ctx, {
+        actorId: args.requesterId,
+        displayName: args.requesterDisplayName,
+        imageUrl: args.requesterImageUrl,
+      }),
+    ]);
+
+    const existingEvent = await ctx.db
       .query("stampEvents")
       .withIndex("by_dedupe_key", (q) => q.eq("dedupeKey", args.dedupeKey))
       .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        giverDisplayName: args.giverDisplayName ?? existing.giverDisplayName,
-        requesterDisplayName:
-          args.requesterDisplayName ?? existing.requesterDisplayName,
-        giverImageUrl: args.giverImageUrl ?? existing.giverImageUrl,
-        requesterImageUrl: args.requesterImageUrl ?? existing.requesterImageUrl,
-      });
-      return { duplicateSkipped: true, eventId: existing._id };
+
+    if (existingEvent) {
+      return { duplicateSkipped: true, eventId: existingEvent._id };
     }
 
-    const now = Date.now();
     const eventId = await ctx.db.insert("stampEvents", {
-      giverSlackUserId: args.giverSlackId,
-      requesterSlackUserId: args.requesterSlackId,
-      giverDisplayName: args.giverDisplayName ?? args.giverSlackId,
-      requesterDisplayName: args.requesterDisplayName ?? args.requesterSlackId,
-      giverImageUrl: args.giverImageUrl,
-      requesterImageUrl: args.requesterImageUrl,
+      giverId: args.giverId,
+      requesterId: args.requesterId,
       stampCount: 1,
-      occurredAt: args.occurredAt ?? now,
-      source: `slack:reaction:${args.reaction}`,
+      occurredAt: args.occurredAt ?? Date.now(),
+      source: args.source ?? `stamp:${args.reaction}`,
       channelId: args.channelId,
       prUrl: args.prUrl,
       note: args.note,
       dedupeKey: args.dedupeKey,
     });
+
     return { duplicateSkipped: false, eventId };
   },
 });
@@ -66,33 +219,37 @@ export const ingestReactionStamp = mutation({
 export const removeReactionStamp = mutation({
   args: {
     dedupeKey: v.string(),
-    giverSlackId: v.string(),
-    requesterSlackId: v.string(),
+    giverId: v.string(),
+    requesterId: v.string(),
     reaction: v.string(),
+    source: v.optional(v.string()),
     channelId: v.string(),
   },
   handler: async (ctx, args) => {
-    const byDedupe = await ctx.db
+    const exactMatches = await ctx.db
       .query("stampEvents")
       .withIndex("by_dedupe_key", (q) => q.eq("dedupeKey", args.dedupeKey))
       .collect();
 
-    if (byDedupe.length > 0) {
-      for (const event of byDedupe) {
+    if (exactMatches.length > 0) {
+      for (const event of exactMatches) {
         await ctx.db.delete(event._id);
       }
-      return { removed: byDedupe.length, strategy: "by_dedupe_key" as const };
+      return {
+        removed: exactMatches.length,
+        strategy: "by_dedupe_key" as const,
+      };
     }
 
-    const source = `slack:reaction:${args.reaction}`;
+    const eventSource = args.source ?? `stamp:${args.reaction}`;
     const fallbackMatches = await ctx.db
       .query("stampEvents")
       .filter((q) =>
         q.and(
-          q.eq(q.field("giverSlackUserId"), args.giverSlackId),
-          q.eq(q.field("requesterSlackUserId"), args.requesterSlackId),
+          q.eq(q.field("giverId"), args.giverId),
+          q.eq(q.field("requesterId"), args.requesterId),
           q.eq(q.field("channelId"), args.channelId),
-          q.eq(q.field("source"), source)
+          q.eq(q.field("source"), eventSource)
         )
       )
       .collect();
@@ -101,93 +258,94 @@ export const removeReactionStamp = mutation({
       await ctx.db.delete(event._id);
     }
 
-    return { removed: fallbackMatches.length, strategy: "fallback_scan" as const };
+    return {
+      removed: fallbackMatches.length,
+      strategy: "fallback_scan" as const,
+    };
   },
 });
 
 export const leaderboard = query({
   args: { windowDays: v.optional(v.number()), limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const limit = Math.max(1, Math.min(100, Math.floor(args.limit ?? 25)));
-    const since =
-      args.windowDays && args.windowDays > 0
-        ? Date.now() - Math.floor(args.windowDays) * DAY_MS
-        : undefined;
+    const limit = clampLimit(args.limit, DEFAULT_LEADERBOARD_LIMIT);
+    const since = getSinceTimestamp(args.windowDays);
 
-    const events = since
-      ? await ctx.db
-          .query("stampEvents")
-          .withIndex("by_occurred_at", (q) => q.gte("occurredAt", since))
-          .collect()
-      : await ctx.db.query("stampEvents").collect();
+    const [stampEvents, requests, actorMap] = await Promise.all([
+      since
+        ? ctx.db
+            .query("stampEvents")
+            .withIndex("by_occurred_at", (q) => q.gte("occurredAt", since))
+            .collect()
+        : ctx.db.query("stampEvents").collect(),
+      since
+        ? ctx.db
+            .query("requests")
+            .withIndex("by_occurred_at", (q) => q.gte("occurredAt", since))
+            .collect()
+        : ctx.db.query("requests").collect(),
+      getActorProfileMap(ctx),
+    ]);
 
-    const giverMap = new Map<
-      string,
-      {
-        slackUserId: string;
-        displayName: string;
-        imageUrl?: string;
-        stampsGiven: number;
-        approvalsGiven: number;
-      }
-    >();
-    const requesterMap = new Map<
-      string,
-      {
-        slackUserId: string;
-        displayName: string;
-        imageUrl?: string;
-        stampsRequested: number;
-        approvalsReceived: number;
-      }
-    >();
+    const giversById = new Map<string, GiverAggregate>();
+    const requestersById = new Map<string, RequesterAggregate>();
 
-    for (const event of events) {
-      const giver = giverMap.get(event.giverSlackUserId) ?? {
-        slackUserId: event.giverSlackUserId,
-        displayName: event.giverDisplayName,
-        imageUrl: event.giverImageUrl,
+    for (const request of requests) {
+      const profile = resolveActorProfile(actorMap, request.requesterId);
+      const requester = requestersById.get(request.requesterId) ?? {
+        actorId: request.requesterId,
+        displayName: profile.displayName,
+        imageUrl: profile.imageUrl,
+        requestsPosted: 0,
+        stampsRequested: 0,
+        approvalsReceived: 0,
+      };
+
+      requester.requestsPosted += 1;
+      requestersById.set(request.requesterId, requester);
+    }
+
+    for (const event of stampEvents) {
+      const giverProfile = resolveActorProfile(actorMap, event.giverId);
+      const giver = giversById.get(event.giverId) ?? {
+        actorId: event.giverId,
+        displayName: giverProfile.displayName,
+        imageUrl: giverProfile.imageUrl,
         stampsGiven: 0,
         approvalsGiven: 0,
       };
       giver.stampsGiven += event.stampCount;
       giver.approvalsGiven += 1;
-      giverMap.set(event.giverSlackUserId, giver);
+      giversById.set(event.giverId, giver);
 
-      const requester = requesterMap.get(event.requesterSlackUserId) ?? {
-        slackUserId: event.requesterSlackUserId,
-        displayName: event.requesterDisplayName,
-        imageUrl: event.requesterImageUrl,
+      const requesterProfile = resolveActorProfile(actorMap, event.requesterId);
+      const requester = requestersById.get(event.requesterId) ?? {
+        actorId: event.requesterId,
+        displayName: requesterProfile.displayName,
+        imageUrl: requesterProfile.imageUrl,
+        requestsPosted: 0,
         stampsRequested: 0,
         approvalsReceived: 0,
       };
       requester.stampsRequested += event.stampCount;
       requester.approvalsReceived += 1;
-      requesterMap.set(event.requesterSlackUserId, requester);
+      requestersById.set(event.requesterId, requester);
     }
-
-    const byGivenStamps = (
-      a: { stampsGiven: number; approvalsGiven: number },
-      b: { stampsGiven: number; approvalsGiven: number }
-    ) => b.stampsGiven - a.stampsGiven || b.approvalsGiven - a.approvalsGiven;
-
-    const byRequestedStamps = (
-      a: { stampsRequested: number; approvalsReceived: number },
-      b: { stampsRequested: number; approvalsReceived: number }
-    ) =>
-      b.stampsRequested - a.stampsRequested ||
-      b.approvalsReceived - a.approvalsReceived;
 
     return {
       generatedAt: Date.now(),
       windowDays: args.windowDays ?? null,
       totals: {
-        events: events.length,
-        stamps: events.reduce((sum, event) => sum + event.stampCount, 0),
+        events: stampEvents.length,
+        stamps: stampEvents.reduce((sum, event) => sum + event.stampCount, 0),
+        requests: requests.length,
       },
-      givers: Array.from(giverMap.values()).sort(byGivenStamps).slice(0, limit),
-      requesters: Array.from(requesterMap.values())
-        .sort(byRequestedStamps)
+      givers: Array.from(giversById.values())
+        .sort(sortByGivenStamps)
+        .slice(0, limit),
+      requesters: Array.from(requestersById.values())
+        .filter((requester) => requester.stampsRequested > 0)
+        .sort(sortByRequestedStamps)
         .slice(0, limit),
     };
   },
@@ -196,32 +354,64 @@ export const leaderboard = query({
 export const recentEvents = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const limit = Math.max(1, Math.min(100, Math.floor(args.limit ?? 20)));
-    return await ctx.db
-      .query("stampEvents")
-      .withIndex("by_occurred_at")
-      .order("desc")
-      .take(limit);
+    const limit = clampLimit(args.limit, DEFAULT_RECENT_EVENTS_LIMIT);
+    const [events, actorMap] = await Promise.all([
+      ctx.db
+        .query("stampEvents")
+        .withIndex("by_occurred_at")
+        .order("desc")
+        .take(limit),
+      getActorProfileMap(ctx),
+    ]);
+
+    return events.map((event) => {
+      const giver = resolveActorProfile(actorMap, event.giverId);
+      const requester = resolveActorProfile(actorMap, event.requesterId);
+      return {
+        ...event,
+        giverDisplayName: giver.displayName,
+        giverImageUrl: giver.imageUrl,
+        requesterDisplayName: requester.displayName,
+        requesterImageUrl: requester.imageUrl,
+      };
+    });
   },
 });
 
-function incrementCount(
-  map: Map<string, number>,
-  key: string | undefined,
-  amount = 1
-) {
-  if (!key) {
-    return;
-  }
-  map.set(key, (map.get(key) ?? 0) + amount);
-}
+export const redactStoredNotes = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const [requests, stampEvents] = await Promise.all([
+      ctx.db.query("requests").collect(),
+      ctx.db.query("stampEvents").collect(),
+    ]);
 
-function topCounts(map: Map<string, number>, limit = 20) {
-  return Array.from(map.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([key, count]) => ({ key, count }));
-}
+    let redactedRequestNotes = 0;
+    for (const request of requests) {
+      if (!request.note) {
+        continue;
+      }
+      await ctx.db.patch(request._id, { note: undefined });
+      redactedRequestNotes += 1;
+    }
+
+    let redactedEventNotes = 0;
+    for (const event of stampEvents) {
+      if (!event.note) {
+        continue;
+      }
+      await ctx.db.patch(event._id, { note: undefined });
+      redactedEventNotes += 1;
+    }
+
+    return {
+      requestRowsScanned: requests.length,
+      stampRowsScanned: stampEvents.length,
+      requestNotesRedacted: redactedRequestNotes,
+      eventNotesRedacted: redactedEventNotes,
+    };
+  },
+});
 
 export const backfillChannel = action({
   args: {
@@ -230,169 +420,6 @@ export const backfillChannel = action({
     maxMessages: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const botToken = process.env.SLACK_BOT_TOKEN;
-    if (!botToken) {
-      throw new Error("missing SLACK_BOT_TOKEN");
-    }
-
-    const maxMessages = Math.max(1, Math.min(50000, Math.floor(args.maxMessages ?? 5000)));
-    const stampEmojis = getStampEmojiSet();
-    const userCache = new Map<string, SlackUserSummary>();
-    let cursor: string | undefined;
-    let scannedMessages = 0;
-    let qualifyingMessages = 0;
-    let createdEvents = 0;
-    let duplicateEvents = 0;
-    let skippedSelfReactions = 0;
-    let skippedMissingUrl = 0;
-    let skippedMissingAuthor = 0;
-    let skippedNoReactions = 0;
-    let skippedNoTrackedReactions = 0;
-    let messagesWithAnyReaction = 0;
-    let messagesWithTrackedReaction = 0;
-    const allReactionNames = new Map<string, number>();
-    const trackedReactionNames = new Map<string, number>();
-    const untrackedReactionNames = new Map<string, number>();
-    const qualifyingUrlHosts = new Map<string, number>();
-
-    const getUserSummary = async (slackUserId: string) => {
-      const cached = userCache.get(slackUserId);
-      if (cached) {
-        return cached;
-      }
-      const summary = await fetchSlackUserSummary({
-        botToken,
-        slackUserId,
-      });
-      userCache.set(slackUserId, summary);
-      return summary;
-    };
-
-    while (scannedMessages < maxMessages) {
-      const page = await fetchSlackHistoryPage({
-        botToken,
-        channelId: args.channelId,
-        cursor,
-        oldestTs: args.oldestTs,
-      });
-
-      if (!page.ok) {
-        throw new Error(`slack history fetch failed: ${page.error ?? "unknown_error"}`);
-      }
-      if (page.messages.length === 0) {
-        break;
-      }
-
-      for (const message of page.messages) {
-        if (scannedMessages >= maxMessages) {
-          break;
-        }
-        scannedMessages += 1;
-
-        const requesterSlackId = message.user;
-        if (!requesterSlackId) {
-          skippedMissingAuthor += 1;
-          continue;
-        }
-
-        const qualifyingUrl = extractQualifyingReviewUrl(message.text);
-        if (!qualifyingUrl) {
-          skippedMissingUrl += 1;
-          continue;
-        }
-        incrementCount(qualifyingUrlHosts, new URL(qualifyingUrl).hostname);
-
-        const reactions = message.reactions ?? [];
-        if (reactions.length === 0) {
-          skippedNoReactions += 1;
-          continue;
-        }
-        messagesWithAnyReaction += 1;
-        const occurredAt = message.ts ? Math.floor(Number(message.ts) * 1000) : undefined;
-        let matchedAnyReaction = false;
-
-        for (const reaction of reactions) {
-          const reactionName = normalizeEmoji(reaction.name ?? "");
-          incrementCount(allReactionNames, reactionName);
-          if (!stampEmojis.has(reactionName)) {
-            incrementCount(untrackedReactionNames, reactionName);
-            continue;
-          }
-          matchedAnyReaction = true;
-          incrementCount(trackedReactionNames, reactionName);
-          for (const giverSlackId of reaction.users ?? []) {
-            if (giverSlackId === requesterSlackId) {
-              skippedSelfReactions += 1;
-              continue;
-            }
-
-            const [giver, requester] = await Promise.all([
-              getUserSummary(giverSlackId),
-              getUserSummary(requesterSlackId),
-            ]);
-            const dedupeKey = buildReactionDedupeKey({
-              channelId: args.channelId,
-              messageTs: message.ts ?? "0",
-              reaction: reactionName,
-              giverSlackId,
-            });
-            const result = await ctx.runMutation(api.stamps.ingestReactionStamp, {
-              giverSlackId,
-              requesterSlackId,
-              giverDisplayName: giver.displayName,
-              requesterDisplayName: requester.displayName,
-              giverImageUrl: giver.imageUrl,
-              requesterImageUrl: requester.imageUrl,
-              reaction: reactionName,
-              occurredAt,
-              channelId: args.channelId,
-              prUrl: qualifyingUrl,
-              note: message.text,
-              dedupeKey,
-            });
-            if (result.duplicateSkipped) {
-              duplicateEvents += 1;
-            } else {
-              createdEvents += 1;
-            }
-          }
-        }
-
-        if (matchedAnyReaction) {
-          qualifyingMessages += 1;
-          messagesWithTrackedReaction += 1;
-        } else {
-          skippedNoTrackedReactions += 1;
-        }
-      }
-
-      if (!page.nextCursor) {
-        break;
-      }
-      cursor = page.nextCursor;
-    }
-
-    const summary = {
-      channelId: args.channelId,
-      scannedMessages,
-      qualifyingMessages,
-      createdEvents,
-      duplicateEvents,
-      skippedSelfReactions,
-      skippedMissingUrl,
-      skippedMissingAuthor,
-      skippedNoReactions,
-      skippedNoTrackedReactions,
-      messagesWithAnyReaction,
-      messagesWithTrackedReaction,
-      topAllReactionNames: topCounts(allReactionNames),
-      topTrackedReactionNames: topCounts(trackedReactionNames),
-      topUntrackedReactionNames: topCounts(untrackedReactionNames),
-      qualifyingUrlHosts: topCounts(qualifyingUrlHosts),
-      trackedEmojiSet: Array.from(stampEmojis.values()).sort(),
-    };
-
-    console.log("stamphog backfill summary", JSON.stringify(summary));
-    return summary;
+    return runSlackBackfill(ctx, args);
   },
 });
