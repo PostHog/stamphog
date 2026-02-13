@@ -11,10 +11,37 @@ import { Avatar } from "./avatar";
 type ScoreKey = "stampsGiven" | "stampsRequested";
 type Tone = "amber" | "teal";
 
-const medalConfig = {
-  1: { ring: "gold" as const, accent: "text-chart-1" },
-  2: { ring: "silver" as const, accent: "text-muted-foreground" },
-  3: { ring: "bronze" as const, accent: "text-chart-4" },
+const podiumConfig = {
+  1: {
+    ring: "gold" as const,
+    accent: "text-chart-1",
+    avatarSize: "xl" as const,
+    pedestal: "h-20 bg-gradient-to-t from-chart-1/20 to-chart-1/5",
+    label: "\uD83D\uDC51",
+    labelClass: "text-2xl",
+    nameClass: "font-semibold text-foreground text-base",
+    scoreClass: "text-3xl",
+  },
+  2: {
+    ring: "silver" as const,
+    accent: "text-muted-foreground",
+    avatarSize: "lg" as const,
+    pedestal: "h-14 bg-muted/60",
+    label: "2",
+    labelClass: "font-mono text-lg font-bold",
+    nameClass: "font-medium text-secondary-foreground text-sm",
+    scoreClass: "text-xl",
+  },
+  3: {
+    ring: "bronze" as const,
+    accent: "text-chart-4",
+    avatarSize: "md" as const,
+    pedestal: "h-10 bg-muted/40",
+    label: "3",
+    labelClass: "font-mono text-base font-bold",
+    nameClass: "font-medium text-secondary-foreground text-xs",
+    scoreClass: "text-lg",
+  },
 } as const;
 
 const toneBarColor = {
@@ -58,7 +85,7 @@ export function LeaderboardList({
     <LayoutGroup id={`leaderboard-${scoreKey}`}>
       <div>
         {/* Podium - top 3 */}
-        <div className="flex items-end justify-center gap-2 py-4 sm:gap-3">
+        <div className="flex items-end justify-center gap-3 pt-6 pb-2 sm:gap-4">
           <AnimatePresence mode="popLayout">
             {(
               [
@@ -71,14 +98,14 @@ export function LeaderboardList({
                 return <div className="max-w-[160px] flex-1" key={rank} />;
               }
 
-              const medal = medalConfig[rank];
+              const cfg = podiumConfig[rank];
               const isChampion = rank === 1;
               const score = getScore(row, scoreKey);
 
               return (
                 <motion.div
                   animate={{ opacity: 1, y: 0 }}
-                  className="max-w-[160px] flex-1"
+                  className="flex max-w-[180px] flex-1 flex-col items-center"
                   exit={{ opacity: 0, scale: 0.9 }}
                   initial={{ opacity: 0, y: 20 }}
                   key={row.actorId}
@@ -90,51 +117,54 @@ export function LeaderboardList({
                 >
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          "flex flex-col items-center rounded-xl",
-                          isChampion
-                            ? "border border-primary/20 bg-card/80 px-3 pt-4 pb-5 shadow-lg shadow-primary/20"
-                            : "border border-border bg-card/40 px-2.5 pt-3 pb-3.5"
-                        )}
-                      >
-                        <span
+                      <div className="flex w-full flex-col items-center">
+                        {/* Avatar + info */}
+                        <div className="relative flex flex-col items-center">
+                          {isChampion && (
+                            <div className="absolute -inset-4 rounded-full bg-chart-1/10 blur-2xl" />
+                          )}
+                          <span
+                            className={cn("mb-1.5", cfg.labelClass, cfg.accent)}
+                          >
+                            {cfg.label}
+                          </span>
+                          <Avatar
+                            fallback={row.displayName}
+                            imageUrl={row.imageUrl}
+                            ring={cfg.ring}
+                            size={cfg.avatarSize}
+                          />
+                          <p
+                            className={cn(
+                              "mt-2 max-w-full truncate",
+                              cfg.nameClass
+                            )}
+                          >
+                            {firstName(row.displayName)}
+                          </p>
+                        </div>
+
+                        {/* Pedestal */}
+                        <div
                           className={cn(
-                            "mb-2.5 font-mono text-[10px] uppercase tracking-widest",
-                            medal.accent
+                            "mt-3 flex w-full items-center justify-center rounded-lg",
+                            cfg.pedestal
                           )}
                         >
-                          {rank === 1 ? "\u2605" : `#${rank}`}
-                        </span>
-                        <Avatar
-                          fallback={row.displayName}
-                          imageUrl={row.imageUrl}
-                          ring={medal.ring}
-                          size={isChampion ? "lg" : "md"}
-                        />
-                        <p
-                          className={cn(
-                            "mt-2 max-w-full truncate",
-                            isChampion
-                              ? "font-semibold text-foreground text-sm"
-                              : "font-medium text-secondary-foreground text-xs"
-                          )}
-                        >
-                          {firstName(row.displayName)}
-                        </p>
-                        <motion.p
-                          animate={{ scale: 1, color: undefined }}
-                          className={cn(
-                            "font-bold font-mono tabular-nums",
-                            isChampion ? "text-2xl" : "text-lg",
-                            medal.accent
-                          )}
-                          initial={{ scale: 1.3, color: "#fff" }}
-                          key={score}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {score}
-                        </motion.p>
+                          <motion.span
+                            animate={{ scale: 1, color: undefined }}
+                            className={cn(
+                              "font-bold font-mono tabular-nums",
+                              cfg.scoreClass,
+                              cfg.accent
+                            )}
+                            initial={{ scale: 1.3, color: "#fff" }}
+                            key={score}
+                            transition={{ duration: 0.3 }}
+                          >
+                            {score}
+                          </motion.span>
+                        </div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>

@@ -9,12 +9,14 @@ const sizeClasses = {
   sm: "size-7",
   md: "size-9",
   lg: "size-14",
+  xl: "size-20",
 } as const;
 
 const fallbackTextSizes = {
   sm: "text-[10px]",
   md: "text-xs",
   lg: "text-lg",
+  xl: "text-xl",
 } as const;
 
 const ringStyles = {
