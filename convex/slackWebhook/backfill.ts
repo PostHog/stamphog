@@ -180,7 +180,6 @@ async function ingestRequestForMessage(
       messageRef,
       occurredAt: toOccurredAtMs(message.ts),
       prUrl: qualifyingUrl,
-      note: message.text,
       dedupeKey: buildRequestDedupeKey({
         channelId: runtime.channelId,
         messageTs: messageRef,
@@ -237,7 +236,6 @@ async function ingestTrackedReactionUsers(args: {
         occurredAt: args.occurredAt,
         channelId: args.runtime.channelId,
         prUrl: args.qualifyingUrl,
-        note: args.message.text,
         dedupeKey,
       }
     );

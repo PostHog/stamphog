@@ -74,7 +74,6 @@ export async function handleSlackMessageEvent(
     messageRef: messageTs,
     occurredAt: toOccurredAtMs(event.event_ts ?? messageTs),
     prUrl: qualifyingUrl,
-    note: event.text,
     dedupeKey: buildRequestDedupeKey({ channelId, messageTs }),
   });
 
@@ -143,7 +142,6 @@ export async function handleSlackReactionEvent(
     messageRef: messageTs,
     occurredAt: toOccurredAtMs(event.event_ts),
     prUrl: qualifyingUrl,
-    note: message.text,
     dedupeKey: buildRequestDedupeKey({ channelId, messageTs }),
   });
 
@@ -189,7 +187,6 @@ export async function handleSlackReactionEvent(
     occurredAt: toOccurredAtMs(event.event_ts),
     channelId,
     prUrl: qualifyingUrl,
-    note: message.text,
     dedupeKey,
   });
 

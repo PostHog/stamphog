@@ -15,7 +15,6 @@ export default defineSchema({
     messageRef: v.string(),
     occurredAt: v.number(),
     prUrl: v.string(),
-    note: v.optional(v.string()),
     dedupeKey: v.string(),
   })
     .index("by_occurred_at", ["occurredAt"])
@@ -30,7 +29,6 @@ export default defineSchema({
     source: v.string(),
     channelId: v.optional(v.string()),
     prUrl: v.optional(v.string()),
-    note: v.optional(v.string()),
     dedupeKey: v.optional(v.string()),
   })
     .index("by_occurred_at", ["occurredAt"])

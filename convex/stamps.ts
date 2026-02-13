@@ -123,7 +123,6 @@ export const ingestRequestMessage = mutation({
     messageRef: v.string(),
     occurredAt: v.optional(v.number()),
     prUrl: v.string(),
-    note: v.optional(v.string()),
     dedupeKey: v.string(),
   },
   handler: async (ctx, args) => {
@@ -141,7 +140,6 @@ export const ingestRequestMessage = mutation({
     if (existingRequest) {
       await ctx.db.patch(existingRequest._id, {
         prUrl: args.prUrl,
-        note: args.note,
       });
 
       return { duplicateSkipped: true, requestId: existingRequest._id };
@@ -153,7 +151,6 @@ export const ingestRequestMessage = mutation({
       messageRef: args.messageRef,
       occurredAt: args.occurredAt ?? Date.now(),
       prUrl: args.prUrl,
-      note: args.note,
       dedupeKey: args.dedupeKey,
     });
 
@@ -174,7 +171,6 @@ export const ingestReactionStamp = mutation({
     occurredAt: v.optional(v.number()),
     channelId: v.string(),
     prUrl: v.optional(v.string()),
-    note: v.optional(v.string()),
     dedupeKey: v.string(),
   },
   handler: async (ctx, args) => {
@@ -208,7 +204,6 @@ export const ingestReactionStamp = mutation({
       source: args.source ?? `stamp:${args.reaction}`,
       channelId: args.channelId,
       prUrl: args.prUrl,
-      note: args.note,
       dedupeKey: args.dedupeKey,
     });
 
@@ -368,7 +363,13 @@ export const recentEvents = query({
       const giver = resolveActorProfile(actorMap, event.giverId);
       const requester = resolveActorProfile(actorMap, event.requesterId);
       return {
-        ...event,
+        _id: event._id,
+        _creationTime: event._creationTime,
+        giverId: event.giverId,
+        requesterId: event.requesterId,
+        stampCount: event.stampCount,
+        occurredAt: event.occurredAt,
+        prUrl: event.prUrl,
         giverDisplayName: giver.displayName,
         giverImageUrl: giver.imageUrl,
         requesterDisplayName: requester.displayName,
@@ -378,113 +379,37 @@ export const recentEvents = query({
   },
 });
 
-export const redactStoredNotes = mutation({
+function getChannelIds(): string[] {
+  const raw = process.env.CHANNEL_IDS;
+  if (!raw) {
+    throw new Error("missing CHANNEL_IDS env var");
+  }
+  const ids = raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (ids.length === 0) {
+    throw new Error("CHANNEL_IDS env var is empty");
+  }
+  return ids;
+}
+
+export const backfill = action({
   args: {},
   handler: async (ctx) => {
-    const [requests, stampEvents] = await Promise.all([
-      ctx.db.query("requests").collect(),
-      ctx.db.query("stampEvents").collect(),
-    ]);
-
-    let redactedRequestNotes = 0;
-    for (const request of requests) {
-      if (!request.note) {
-        continue;
-      }
-      await ctx.db.patch(request._id, { note: undefined });
-      redactedRequestNotes += 1;
-    }
-
-    let redactedEventNotes = 0;
-    for (const event of stampEvents) {
-      if (!event.note) {
-        continue;
-      }
-      await ctx.db.patch(event._id, { note: undefined });
-      redactedEventNotes += 1;
-    }
-
-    return {
-      requestRowsScanned: requests.length,
-      stampRowsScanned: stampEvents.length,
-      requestNotesRedacted: redactedRequestNotes,
-      eventNotesRedacted: redactedEventNotes,
-    };
-  },
-});
-
-export const backfillChannel = action({
-  args: {
-    channelId: v.string(),
-    oldestTs: v.optional(v.string()),
-    maxMessages: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return runSlackBackfill(ctx, args);
-  },
-});
-
-export const backfillChannels = action({
-  args: {
-    channelIds: v.array(v.string()),
-    oldestTs: v.optional(v.string()),
-    maxMessagesPerChannel: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const uniqueChannelIds = Array.from(
-      new Set(
-        args.channelIds.map((channelId) => channelId.trim()).filter(Boolean)
-      )
-    );
-    if (uniqueChannelIds.length === 0) {
-      throw new Error(
-        "channelIds must include at least one non-empty channel id"
-      );
-    }
-
-    const summaries: Array<{
-      channelId: string;
-      scannedMessages: number;
-      qualifyingMessages: number;
-      createdEvents: number;
-      duplicateEvents: number;
-      createdRequests: number;
-      duplicateRequests: number;
-      skippedSelfReactions: number;
-      skippedMissingUrl: number;
-      skippedMissingAuthor: number;
-      skippedNoReactions: number;
-      skippedNoTrackedReactions: number;
-      messagesWithAnyReaction: number;
-      messagesWithTrackedReaction: number;
-      topAllReactionNames: Array<{ key: string; count: number }>;
-      topTrackedReactionNames: Array<{ key: string; count: number }>;
-      topUntrackedReactionNames: Array<{ key: string; count: number }>;
-      qualifyingUrlHosts: Array<{ key: string; count: number }>;
-      trackedEmojiSet: string[];
-    }> = [];
+    const channelIds = getChannelIds();
 
     const failures: Array<{ channelId: string; error: string }> = [];
     let totalScannedMessages = 0;
     let totalCreatedEvents = 0;
-    let totalDuplicateEvents = 0;
     let totalCreatedRequests = 0;
-    let totalDuplicateRequests = 0;
 
-    for (const channelId of uniqueChannelIds) {
+    for (const channelId of channelIds) {
       try {
-        const summary = await runSlackBackfill(ctx, {
-          channelId,
-          oldestTs: args.oldestTs,
-          maxMessages: args.maxMessagesPerChannel,
-        });
-
-        summaries.push(summary);
+        const summary = await runSlackBackfill(ctx, { channelId });
         totalScannedMessages += summary.scannedMessages;
         totalCreatedEvents += summary.createdEvents;
-        totalDuplicateEvents += summary.duplicateEvents;
         totalCreatedRequests += summary.createdRequests;
-        totalDuplicateRequests += summary.duplicateRequests;
       } catch (error) {
         failures.push({
           channelId,
@@ -494,18 +419,11 @@ export const backfillChannels = action({
     }
 
     return {
-      requestedChannels: uniqueChannelIds.length,
-      succeededChannels: summaries.length,
-      failedChannels: failures.length,
-      totals: {
-        scannedMessages: totalScannedMessages,
-        createdEvents: totalCreatedEvents,
-        duplicateEvents: totalDuplicateEvents,
-        createdRequests: totalCreatedRequests,
-        duplicateRequests: totalDuplicateRequests,
-      },
-      summaries,
+      channels: channelIds.length,
       failures,
+      totalScannedMessages,
+      totalCreatedEvents,
+      totalCreatedRequests,
     };
   },
 });
