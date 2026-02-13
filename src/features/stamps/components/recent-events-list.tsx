@@ -1,41 +1,101 @@
 import { useRecentStampEvents } from "../queries";
 import { Avatar } from "./avatar";
 
-function formatDate(timestampMs: number) {
-  return new Date(timestampMs).toLocaleString();
+const GITHUB_PR_URL = /github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)/;
+const WHITESPACE = /\s/;
+
+function timeAgo(ms: number): string {
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) {
+    return "now";
+  }
+  const min = Math.floor(sec / 60);
+  if (min < 60) {
+    return `${min}m`;
+  }
+  const hr = Math.floor(min / 60);
+  if (hr < 24) {
+    return `${hr}h`;
+  }
+  const d = Math.floor(hr / 24);
+  if (d < 7) {
+    return `${d}d`;
+  }
+  return `${Math.floor(d / 7)}w`;
+}
+
+function prLabel(url: string): string {
+  const gh = url.match(GITHUB_PR_URL);
+  if (gh) {
+    return `${gh[1]}#${gh[2]}`;
+  }
+  return "PR";
+}
+
+function firstName(name: string): string {
+  return name.split(WHITESPACE)[0] ?? name;
 }
 
 export function RecentEventsList() {
   const { data: events } = useRecentStampEvents();
 
   if (events.length === 0) {
-    return <p className="text-sm text-zinc-500">No stamp activity yet.</p>;
+    return (
+      <p className="py-10 text-center text-sm text-zinc-600">No activity yet</p>
+    );
   }
 
   return (
-    <div className="space-y-2">
-      {events.map((event) => (
+    <div className="space-y-0.5">
+      {events.map((ev, i) => (
         <div
-          className="rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2"
-          key={event._id}
+          className="flex animate-fade-up items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-zinc-900/40"
+          key={ev._id}
+          style={{ animationDelay: `${i * 25}ms` }}
         >
-          <div className="flex items-center gap-2">
-            <Avatar
-              fallback={event.giverDisplayName}
-              imageUrl={event.giverImageUrl}
+          <Avatar fallback={ev.giverDisplayName} imageUrl={ev.giverImageUrl} />
+          <svg
+            aria-hidden="true"
+            className="h-3 w-3 shrink-0 text-zinc-700"
+            fill="none"
+            viewBox="0 0 12 12"
+          >
+            <path
+              d="M2 6h8m-3-3 3 3-3 3"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
             />
-            <p className="text-sm text-zinc-200">
-              <span className="font-medium">{event.giverDisplayName}</span>{" "}
-              stamped{" "}
-              <span className="font-medium">{event.requesterDisplayName}</span>{" "}
-              (+
-              {event.stampCount})
-            </p>
-          </div>
-          <p className="text-xs text-zinc-500">
-            {formatDate(event.occurredAt)}
-            {event.prUrl ? `  |  ${event.prUrl}` : ""}
+          </svg>
+          <Avatar
+            fallback={ev.requesterDisplayName}
+            imageUrl={ev.requesterImageUrl}
+          />
+          <p className="min-w-0 flex-1 truncate text-sm text-zinc-500">
+            <span className="text-zinc-300">
+              {firstName(ev.giverDisplayName)}
+            </span>
+            {" stamped "}
+            <span className="text-zinc-300">
+              {firstName(ev.requesterDisplayName)}
+            </span>
           </p>
+          <div className="flex shrink-0 items-center gap-2.5">
+            {ev.prUrl && (
+              <a
+                className="font-mono text-[11px] text-zinc-600 transition-colors hover:text-zinc-400"
+                href={ev.prUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {prLabel(ev.prUrl)}
+              </a>
+            )}
+            <span className="font-mono text-[11px] text-zinc-700 tabular-nums">
+              {timeAgo(ev.occurredAt)}
+            </span>
+          </div>
         </div>
       ))}
     </div>

@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Badge } from "~/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
-import { StampMiniBars } from "~/features/stamps/components/stamp-mini-bars";
 import {
   leaderboardQuery,
   recentStampEventsQuery,
   useLeaderboard,
 } from "~/features/stamps/queries";
 import { toLeaderboardRows } from "~/features/stamps/types";
+import { cn } from "~/lib/utils";
+
+const WINDOWS = [7, 14, 30, 60, 90] as const;
 
 export const Route = createFileRoute("/")({
   loader: async (opts) => {
@@ -22,137 +22,124 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const LEADERBOARD_WINDOWS = [7, 14, 30, 60, 90] as const;
-
-function windowLabel(days: number) {
-  return `${days}-Day`;
-}
-
 function Home() {
-  const [windowDays, setWindowDays] = useState<number>(30);
+  const [windowDays, setWindowDays] = useState(30);
+  const [tab, setTab] = useState<"givers" | "requesters">("givers");
   const { data: leaderboard } = useLeaderboard(windowDays);
 
   const giverRows = toLeaderboardRows(leaderboard.givers);
   const requesterRows = toLeaderboardRows(leaderboard.requesters);
+  const rows = tab === "givers" ? giverRows : requesterRows;
+  const scoreKey =
+    tab === "givers" ? ("stampsGiven" as const) : ("stampsRequested" as const);
+  const tone = tab === "givers" ? ("amber" as const) : ("teal" as const);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-8 py-12 md:py-16">
-      <main className="space-y-10">
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <Badge>StampHog</Badge>
-            <Badge className="text-zinc-300">
-              {leaderboard.totals.requests} requests
-            </Badge>
+    <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      {/* Header */}
+      <header className="animate-fade-up">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-bold text-lg text-zinc-100 tracking-tight">
+              StampHog
+            </h1>
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-[10px] text-emerald-400">
+              <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-emerald-400" />
+              Live
+            </span>
           </div>
-          <h1 className="mb-4 font-bold text-4xl tracking-tight">
-            StampHog: Realtime PR Approval Leaderboard
-          </h1>
-          <p className="text-sm text-zinc-400">
-            Reactions on qualifying GitHub/Graphite request messages update this
-            leaderboard in realtime.
-          </p>
-        </section>
+          <select
+            className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 outline-none transition-colors hover:border-zinc-700 hover:text-zinc-300"
+            onChange={(e) => setWindowDays(Number(e.target.value))}
+            value={windowDays}
+          >
+            {WINDOWS.map((d) => (
+              <option key={d} value={d}>
+                {d}-day
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mt-1 text-sm text-zinc-500">PR approval leaderboard</p>
+      </header>
 
-        <section>
-          <Card className="border-zinc-800">
-            <CardHeader className="border-zinc-800 border-b pb-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle className="text-xl">
-                  {windowLabel(windowDays)} Leaderboard
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <label
-                    className="text-xs text-zinc-400"
-                    htmlFor="leaderboard-window"
-                  >
-                    Window
-                  </label>
-                  <select
-                    className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100"
-                    id="leaderboard-window"
-                    onChange={(event) =>
-                      setWindowDays(Number(event.target.value))
-                    }
-                    value={windowDays}
-                  >
-                    {LEADERBOARD_WINDOWS.map((days) => (
-                      <option key={days} value={days}>
-                        {windowLabel(days)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {leaderboard.totals.events > 0 && (
-                  <p className="text-xs text-zinc-400">
-                    {leaderboard.totals.stamps} stamps ·{" "}
-                    {leaderboard.totals.requests} requests
-                  </p>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h3 className="mb-2 font-semibold text-sm text-zinc-100">
-                    Top stamp givers
-                  </h3>
-                  <LeaderboardList
-                    emptyText="No stamp givers yet."
-                    rows={giverRows}
-                    scoreKey="stampsGiven"
-                  />
-                </div>
-                <div>
-                  <h3 className="mb-2 font-semibold text-sm text-zinc-100">
-                    Top stamp requesters
-                  </h3>
-                  <LeaderboardList
-                    emptyText="No stamp requesters yet."
-                    rows={requesterRows}
-                    scoreKey="stampsRequested"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+      {/* Stats */}
+      <div
+        className="mt-6 flex animate-fade-up items-baseline gap-6 sm:gap-8"
+        style={{ animationDelay: "60ms" }}
+      >
+        <Stat label="stamps" value={leaderboard.totals.stamps} />
+        <Stat label="reviews" value={leaderboard.totals.events} />
+        <Stat label="PRs" value={leaderboard.totals.requests} />
+      </div>
 
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Stamp Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-5 md:grid-cols-2">
-                <StampMiniBars
-                  rows={giverRows}
-                  scoreKey="stampsGiven"
-                  title="Top Givers"
-                  tone="amber"
-                />
-                <StampMiniBars
-                  rows={requesterRows}
-                  scoreKey="stampsRequested"
-                  title="Top Requesters"
-                  tone="teal"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+      {/* Tab Switcher */}
+      <div
+        className="relative mt-8 flex animate-fade-up rounded-lg bg-zinc-900/70 p-1"
+        style={{ animationDelay: "120ms" }}
+      >
+        <div
+          className={cn(
+            "absolute top-1 bottom-1 rounded-md bg-zinc-800 transition-all duration-300 ease-out",
+            tab === "givers"
+              ? "right-[calc(50%+2px)] left-1"
+              : "right-1 left-[calc(50%+2px)]"
+          )}
+        />
+        <button
+          className={cn(
+            "relative z-10 flex-1 rounded-md py-2 font-medium text-sm transition-colors",
+            tab === "givers"
+              ? "text-zinc-100"
+              : "text-zinc-500 hover:text-zinc-400"
+          )}
+          onClick={() => setTab("givers")}
+          type="button"
+        >
+          Stamp Givers
+        </button>
+        <button
+          className={cn(
+            "relative z-10 flex-1 rounded-md py-2 font-medium text-sm transition-colors",
+            tab === "requesters"
+              ? "text-zinc-100"
+              : "text-zinc-500 hover:text-zinc-400"
+          )}
+          onClick={() => setTab("requesters")}
+          type="button"
+        >
+          Stamp Requesters
+        </button>
+      </div>
 
-        <section>
-          <Card className="border-zinc-800">
-            <CardHeader className="border-zinc-800 border-b pb-4">
-              <CardTitle className="text-xl">Recent Stamp Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RecentEventsList />
-            </CardContent>
-          </Card>
-        </section>
-      </main>
+      {/* Leaderboard */}
+      <div className="mt-4">
+        <LeaderboardList
+          key={tab}
+          rows={rows}
+          scoreKey={scoreKey}
+          tone={tone}
+        />
+      </div>
+
+      {/* Recent Activity */}
+      <section className="mt-10">
+        <h2 className="mb-3 font-semibold text-xs text-zinc-600 uppercase tracking-wider">
+          Recent Activity
+        </h2>
+        <RecentEventsList />
+      </section>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="font-bold font-mono text-2xl text-zinc-100 tabular-nums">
+        {value}
+      </span>
+      <span className="text-sm text-zinc-500">{label}</span>
     </div>
   );
 }
