@@ -515,3 +515,30 @@ export const pruneDataOlderThanRetentionWindow = internalMutation({
     };
   },
 });
+
+export const deleteAllData = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const [requests, stampEvents, actors] = await Promise.all([
+      ctx.db.query("requests").collect(),
+      ctx.db.query("stampEvents").collect(),
+      ctx.db.query("actors").collect(),
+    ]);
+
+    for (const request of requests) {
+      await ctx.db.delete(request._id);
+    }
+    for (const event of stampEvents) {
+      await ctx.db.delete(event._id);
+    }
+    for (const actor of actors) {
+      await ctx.db.delete(actor._id);
+    }
+
+    return {
+      deletedRequests: requests.length,
+      deletedStampEvents: stampEvents.length,
+      deletedActors: actors.length,
+    };
+  },
+});
