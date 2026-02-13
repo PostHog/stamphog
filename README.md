@@ -1,19 +1,29 @@
-# StampHog
+<p align="center">
+  <img alt="stamphog" src="https://raw.githubusercontent.com/PostHog/stamphog/main/public/superman-hog.png" width="200">
+</p>
 
-Realtime leaderboard of who gives and receives the most PR approval "stamps" in Slack.
+<h1 align="center">StampHog</h1>
 
-Built with [TanStack Start](https://tanstack.com/start) + [Convex](https://convex.dev).
+<p align="center">
+  Realtime leaderboard of who gives and receives the most PR approval stamps in Slack.
+</p>
 
-## What It Does
+> [!WARNING]
+> This is a chaotic side project held together by vibes and Convex. If you take leaderboard rankings seriously, that's on you.
 
-- Tracks stamp events (`giver -> requester`)
-- Shows live 30-day leaderboards for:
-  - top stamp givers
-  - top stamp requesters
-- Exposes a Slack ingestion endpoint at `/slack/stamps`
-- Uses Slack message + reaction events
+## 🦔 What is StampHog?
 
-## Quick Start
+StampHog gamifies code review culture. It watches your Slack channels for PR links and stamp reactions, then ranks everyone on a live leaderboard. Think of it as a hall of fame for your most prolific reviewers (and most persistent PR posters).
+
+**How it works:**
+
+1. Someone posts a GitHub or Graphite PR link in Slack
+2. A reviewer reacts with a stamp emoji (there are 19 tracked variants)
+3. StampHog records the stamp and updates the leaderboard in realtime
+
+Built with [TanStack Start](https://tanstack.com/start) + [Convex](https://convex.dev) + [PostHog](https://posthog.com).
+
+## 🚀 Quick Start
 
 ```bash
 pnpm install
@@ -21,74 +31,80 @@ npx convex dev --once
 pnpm dev
 ```
 
-## Slack Setup
+## 💬 Slack Setup
 
 1. Set Event Subscriptions request URL to:
    - `https://<your-convex-deployment>.convex.site/slack/stamps`
-2. Subscribe to bot event:
+2. Subscribe to bot events:
    - `reaction_added`
    - `reaction_removed`
    - `message.channels` (and `message.groups` for private channels)
-3. Add OAuth scopes for reading message context:
+3. Add OAuth scopes:
    - `reactions:read`
-   - `channels:history` (plus `groups:history` if private channels)
-   - `users:read` (to show Slack names and avatars)
-4. In Convex, set:
+   - `channels:history` (plus `groups:history` for private channels)
+   - `users:read` (for names and avatars)
+   - `emoji:read` (for custom emoji URLs)
+4. In Convex, set environment variables:
    - `SLACK_SIGNING_SECRET` (for verifying Slack signatures)
-   - `SLACK_BOT_TOKEN` (for fetching the reacted message author)
-5. Tracked stamp emojis are hardcoded in:
-   - `convex/slack.ts` (`TRACKED_STAMP_EMOJIS`)
+   - `SLACK_BOT_TOKEN` (for fetching message authors)
+   - `CHANNEL_IDS` (comma-separated channel IDs for backfill)
 
-### How Reaction Events Become Stamps
+### What counts as a stamp?
 
-- A stamp is recorded only when someone adds a tracked reaction emoji.
-- The reacted message must include at least one qualifying URL:
-  - `github.com/...` or `*.github.com/...`
-  - `graphite.dev/...` or `*.graphite.dev/...`
-- `reviewer` / stamp giver = the user who added the reaction (`event.user`).
-- `requester` = the author of the reacted message (looked up via Slack API).
-- Non-tracked emojis, non-`reaction_added` events, or messages without a qualifying URL are ignored.
-- Qualifying request messages are tracked even before any stamp reaction, so requesters can appear with `0` stamps.
+StampHog tracks 19 emoji variants including `stamp`, `lgtm`, `approved_stamp`, `check`, and more. The reacted message must contain a qualifying URL (`github.com` or `graphite.dev`).
 
-## Backfill Existing History
+### How reactions become stamps
 
-Run a one-time backfill to import existing qualifying reactions from a channel:
+- **Reviewer** (stamp giver) = the user who added the reaction
+- **Requester** = the author of the reacted message (looked up via Slack API)
+- PR request messages are tracked as soon as they're posted, so requesters appear even with 0 stamps
+- Non-tracked emojis and messages without qualifying URLs are ignored
+
+## 📦 Backfill Existing History
+
+Import existing qualifying reactions from Slack channels:
 
 ```bash
+# Single channel
 npx convex run stamps.backfillChannel '{"channelId":"C0123456789"}'
-```
 
-Optional args:
+# Multiple channels
+npx convex run stamps.backfillChannels '{"channelIds":["C0123456789","C0987654321"]}'
 
-```bash
+# With options
 npx convex run stamps.backfillChannel '{"channelId":"C0123456789","oldestTs":"1704067200","maxMessages":10000}'
 ```
 
-- To backfill multiple channels in one run:
+- `oldestTs` is a Slack timestamp in seconds (`"1704067200"` = 2024-01-01 UTC)
+- `maxMessages` bounds scan cost (default `5000`, max `50000`)
+- Backfill is hard-limited to the most recent 90 days
+- Idempotent via dedupe keys, safe to rerun
 
-```bash
-npx convex run stamps.backfillChannels '{"channelIds":["C0123456789","C0987654321"],"oldestTs":"1704067200","maxMessagesPerChannel":10000}'
-```
+## 🧹 Data Retention
 
-- `oldestTs` is a Slack timestamp string in seconds (`"1704067200"` = 2024-01-01 00:00:00 UTC).
-- `maxMessages` bounds scan cost (default `5000`, max `50000`).
-- `maxMessagesPerChannel` is the same bound but applied to each channel in `backfillChannels`.
-- Backfill is hard-limited to the most recent `90` days. If `oldestTs` is older, it is clamped to the 90-day cutoff.
-- Backfill is idempotent via dedupe keys, so it is safe to rerun.
-
-## Data Retention
-
-To delete data older than 90 days (requests + stamp events) and remove actors
-with no remaining involvement:
+Delete data older than 90 days and clean up orphaned actors:
 
 ```bash
 npx convex run stamps.pruneDataOlderThanRetentionWindow '{}'
 ```
 
-## Scripts
+## 🛠️ Development
 
-- `pnpm dev`: run app + Convex
-- `pnpm dev:web`: run web app only
-- `pnpm dev:convex`: run Convex only
-- `pnpm check-types`: typecheck
-- `pnpm check`: lint
+```bash
+pnpm dev              # Run web app + Convex together
+pnpm dev:web          # Web app only (Vite)
+pnpm dev:convex       # Convex only
+pnpm build            # Production build
+pnpm preview          # Preview production build
+pnpm check-types      # TypeScript check
+pnpm check            # Lint (ultracite/biome)
+pnpm fix              # Auto-fix lint issues
+```
+
+## 🤝 Contributing
+
+PRs welcome. See [PostHog's contributing guide](https://posthog.com/docs/contribute) for general guidelines.
+
+## 📄 License
+
+MIT
