@@ -3,9 +3,9 @@ import type { ActionCtx } from "../_generated/server";
 import {
   buildReactionDedupeKey,
   buildRequestDedupeKey,
+  extractQualifyingReviewUrl,
   fetchSlackMessageAtTimestamp,
   fetchSlackUserSummary,
-  findQualifyingReviewUrlWithThreadFallback,
   getStampEmojiSet,
   normalizeEmoji,
 } from "../slack";
@@ -14,13 +14,6 @@ import type { SlackMessageEvent, SlackReactionEvent } from "./types";
 function toOccurredAtMs(eventTs: string | undefined) {
   const parsed = Number(eventTs);
   return Number.isFinite(parsed) ? Math.floor(parsed * 1000) : undefined;
-}
-
-function shouldCheckThreadFallback(args: {
-  threadTs?: string;
-  replyCount?: number;
-}) {
-  return Boolean(args.threadTs || (args.replyCount ?? 0) > 0);
 }
 
 export async function handleSlackMessageEvent(
@@ -43,16 +36,7 @@ export async function handleSlackMessageEvent(
     return new Response("missing message event fields", { status: 400 });
   }
 
-  const qualifyingUrl = await findQualifyingReviewUrlWithThreadFallback({
-    botToken,
-    channelId,
-    messageTs,
-    messageText: event.text,
-    includeThreadFallback: shouldCheckThreadFallback({
-      threadTs: event.thread_ts,
-      replyCount: event.reply_count,
-    }),
-  });
+  const qualifyingUrl = extractQualifyingReviewUrl(event.text);
   if (!qualifyingUrl) {
     return Response.json({
       ok: true,
@@ -111,16 +95,7 @@ export async function handleSlackReactionEvent(
     return new Response("could not resolve message author", { status: 400 });
   }
 
-  const qualifyingUrl = await findQualifyingReviewUrlWithThreadFallback({
-    botToken,
-    channelId,
-    messageTs,
-    messageText: message.text,
-    includeThreadFallback: shouldCheckThreadFallback({
-      threadTs: message.thread_ts,
-      replyCount: message.reply_count,
-    }),
-  });
+  const qualifyingUrl = extractQualifyingReviewUrl(message.text);
   if (!qualifyingUrl) {
     return Response.json({
       ok: true,

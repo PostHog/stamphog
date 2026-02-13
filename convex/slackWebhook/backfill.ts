@@ -3,9 +3,9 @@ import type { ActionCtx } from "../_generated/server";
 import {
   buildReactionDedupeKey,
   buildRequestDedupeKey,
+  extractQualifyingReviewUrl,
   fetchSlackHistoryPage,
   fetchSlackUserSummary,
-  findQualifyingReviewUrlWithThreadFallback,
   getStampEmojiSet,
   normalizeEmoji,
   type SlackHistoryMessage,
@@ -155,11 +155,6 @@ interface RuntimeContext {
   trackedStampEmojis: Set<string>;
   state: BackfillState;
   getUserSummary: (slackUserId: string) => Promise<SlackUserSummary>;
-  findQualifyingUrl: (args: {
-    messageTs: string;
-    messageText?: string;
-    includeThreadFallback: boolean;
-  }) => Promise<string | undefined>;
 }
 
 async function ingestRequestForMessage(
@@ -305,13 +300,7 @@ async function processMessage(
   }
 
   const messageRef = message.ts ?? "0";
-  const qualifyingUrl = await runtime.findQualifyingUrl({
-    messageTs: messageRef,
-    messageText: message.text,
-    includeThreadFallback: Boolean(
-      message.thread_ts || (message.reply_count ?? 0) > 0
-    ),
-  });
+  const qualifyingUrl = extractQualifyingReviewUrl(message.text);
   if (!qualifyingUrl) {
     runtime.state.skippedMissingUrl += 1;
     return;
@@ -392,14 +381,6 @@ export async function runSlackBackfill(ctx: ActionCtx, args: BackfillArgs) {
     trackedStampEmojis,
     state,
     getUserSummary,
-    findQualifyingUrl: (params) =>
-      findQualifyingReviewUrlWithThreadFallback({
-        botToken,
-        channelId: args.channelId,
-        messageTs: params.messageTs,
-        messageText: params.messageText,
-        includeThreadFallback: params.includeThreadFallback,
-      }),
   };
 
   let cursor: string | undefined;
