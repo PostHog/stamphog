@@ -7,22 +7,26 @@ import {
   useState,
 } from "react";
 import {
-  setTheme as setThemeServerFn,
   type ResolvedTheme,
+  setTheme as setThemeServerFn,
   type Theme,
 } from "~/lib/theme";
 
-type ThemeContextVal = {
+interface ThemeContextVal {
   theme: Theme;
   resolvedTheme: ResolvedTheme;
   setTheme: (val: Theme) => void;
-};
+}
 
 const ThemeContext = createContext<ThemeContextVal | null>(null);
 
 function resolveTheme(theme: Theme): ResolvedTheme {
-  if (theme !== "system") return theme;
-  if (typeof window === "undefined") return "dark";
+  if (theme !== "system") {
+    return theme;
+  }
+  if (typeof window === "undefined") {
+    return "dark";
+  }
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
@@ -34,13 +38,15 @@ export function ThemeProvider({
 }: PropsWithChildren<{ theme: Theme }>) {
   const router = useRouter();
   const [resolved, setResolved] = useState<ResolvedTheme>(() =>
-    resolveTheme(theme),
+    resolveTheme(theme)
   );
 
   useEffect(() => {
     setResolved(resolveTheme(theme));
 
-    if (theme !== "system") return;
+    if (theme !== "system") {
+      return;
+    }
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => setResolved(resolveTheme("system"));
@@ -59,7 +65,9 @@ export function ThemeProvider({
   }
 
   return (
-    <ThemeContext value={{ theme, resolvedTheme: resolved, setTheme: handleSetTheme }}>
+    <ThemeContext
+      value={{ theme, resolvedTheme: resolved, setTheme: handleSetTheme }}
+    >
       {children}
     </ThemeContext>
   );
@@ -67,6 +75,8 @@ export function ThemeProvider({
 
 export function useTheme() {
   const val = use(ThemeContext);
-  if (!val) throw new Error("useTheme must be used within a ThemeProvider");
+  if (!val) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
   return val;
 }

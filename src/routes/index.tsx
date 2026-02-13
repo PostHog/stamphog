@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Calendar } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { ModeToggle } from "~/components/mode-toggle";
@@ -19,15 +20,18 @@ import {
 } from "~/features/stamps/queries";
 import { toLeaderboardRows } from "~/features/stamps/types";
 import { cn } from "~/lib/utils";
+import { getWindowDays, setWindowDays } from "~/lib/window-days";
 
 const WINDOWS = [7, 14, 30, 60, 90] as const;
 
 export const Route = createFileRoute("/")({
   loader: async (opts) => {
+    const windowDays = await getWindowDays();
     await Promise.all([
-      opts.context.queryClient.ensureQueryData(leaderboardQuery()),
+      opts.context.queryClient.ensureQueryData(leaderboardQuery(windowDays)),
       opts.context.queryClient.ensureQueryData(recentStampEventsQuery),
     ]);
+    return { windowDays };
   },
   component: Home,
 });
@@ -35,7 +39,8 @@ export const Route = createFileRoute("/")({
 type Tab = "givers" | "requesters";
 
 function Home() {
-  const [windowDays, setWindowDays] = useState(30);
+  const { windowDays: initialWindowDays } = Route.useLoaderData();
+  const [windowDays, setWindowDaysLocal] = useState(initialWindowDays);
   const [tab, setTab] = useState<Tab>("givers");
   const { data: leaderboard, isPlaceholderData } = useLeaderboard(windowDays);
 
@@ -59,13 +64,18 @@ function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Select
-              onValueChange={(v) => setWindowDays(Number(v))}
+              onValueChange={(v) => {
+                const days = Number(v);
+                setWindowDaysLocal(days);
+                setWindowDays({ data: days });
+              }}
               value={String(windowDays)}
             >
               <SelectTrigger
                 className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
                 size="sm"
               >
+                <Calendar className="size-3" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

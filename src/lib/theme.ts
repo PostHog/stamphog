@@ -7,7 +7,7 @@ export type ResolvedTheme = "light" | "dark";
 const COOKIE_KEY = "stamphog-theme";
 
 export const getTheme = createServerFn().handler(
-  async () => (getCookie(COOKIE_KEY) || "system") as Theme,
+  async () => (getCookie(COOKIE_KEY) || "system") as Theme
 );
 
 export const setTheme = createServerFn({ method: "POST" })

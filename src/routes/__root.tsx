@@ -64,9 +64,20 @@ export const Route = createRootRouteWithContext<{
 function RootDocument({ children }: { children: React.ReactNode }) {
   const theme = Route.useLoaderData();
   return (
-    <html className={theme === "system" ? "" : theme} lang="en" suppressHydrationWarning>
+    <html
+      className={theme === "system" ? "" : theme}
+      lang="en"
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
+        {theme === "system" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{var d=document.documentElement;d.classList.add(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")}catch(e){}})()`,
+            }}
+          />
+        )}
       </head>
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
         <ThemeProvider theme={theme}>
