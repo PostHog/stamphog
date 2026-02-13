@@ -46,9 +46,16 @@ function Home() {
       {/* Header */}
       <header className="animate-fade-up">
         <div className="flex items-center justify-between">
-          <h1 className="font-bold text-foreground text-lg tracking-tight">
-            StampHog
-          </h1>
+          <div className="flex items-center gap-2">
+            <img
+              alt="StampHog mascot"
+              className="size-8"
+              src="/superman-hog.png"
+            />
+            <h1 className="font-bold text-foreground text-lg tracking-tight">
+              StampHog
+            </h1>
+          </div>
           <Select
             onValueChange={(v) => setWindowDays(Number(v))}
             value={String(windowDays)}
