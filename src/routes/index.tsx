@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Calendar } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
 import { ModeToggle } from "~/components/mode-toggle";
 import {
@@ -11,6 +12,11 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
 import {
@@ -21,6 +27,7 @@ import {
 import { toLeaderboardRows } from "~/features/stamps/types";
 import { cn } from "~/lib/utils";
 import { getWindowDays, setWindowDays } from "~/lib/window-days";
+import { STAMP_EMOJIS } from "../../convex/slack";
 
 const WINDOWS = [7, 14, 30, 60, 90] as const;
 
@@ -39,6 +46,7 @@ export const Route = createFileRoute("/")({
 type Tab = "givers" | "requesters";
 
 function Home() {
+  const posthog = usePostHog();
   const { windowDays: initialWindowDays } = Route.useLoaderData();
   const [windowDays, setWindowDaysLocal] = useState(initialWindowDays);
   const [tab, setTab] = useState<Tab>("givers");
@@ -68,6 +76,10 @@ function Home() {
                 const days = Number(v);
                 setWindowDaysLocal(days);
                 setWindowDays({ data: days });
+                posthog.capture("time_window_changed", {
+                  window_days: days,
+                  previous_window_days: windowDays,
+                });
               }}
               value={String(windowDays)}
             >
@@ -92,6 +104,38 @@ function Home() {
         <p className="mt-1 text-muted-foreground text-sm">
           PR approval leaderboard
         </p>
+        <div className="mt-4 space-y-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
+          <p>
+            <strong className="text-foreground">How it works:</strong>
+          </p>
+          <ol className="list-inside list-decimal space-y-1">
+            <li>
+              Post a message in Slack with a{" "}
+              <span className="font-medium text-foreground">
+                GitHub or Graphite PR link
+              </span>{" "}
+              to request a stamp
+            </li>
+            <li>
+              React to that message with{" "}
+              <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                {Object.entries(STAMP_EMOJIS).map(([name, url]) => (
+                  <Tooltip key={name}>
+                    <TooltipTrigger asChild>
+                      <img
+                        alt={`:${name}:`}
+                        className="inline-block h-5 w-5"
+                        src={url}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>:{name}:</TooltipContent>
+                  </Tooltip>
+                ))}
+              </span>{" "}
+              to give a stamp
+            </li>
+          </ol>
+        </div>
       </header>
 
       {/* Stats */}
@@ -111,7 +155,14 @@ function Home() {
             "animate-fade-up transition-opacity duration-200",
             isPlaceholderData && "opacity-50"
           )}
-          onValueChange={(v) => setTab(v as Tab)}
+          onValueChange={(v) => {
+            const newTab = v as Tab;
+            posthog.capture("leaderboard_tab_switched", {
+              tab: newTab,
+              previous_tab: tab,
+            });
+            setTab(newTab);
+          }}
           style={{ animationDelay: "120ms" }}
           value={tab}
         >
