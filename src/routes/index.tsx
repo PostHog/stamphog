@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { Badge } from "~/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Separator } from "~/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
 import {
@@ -18,6 +18,7 @@ import {
   useLeaderboard,
 } from "~/features/stamps/queries";
 import { toLeaderboardRows } from "~/features/stamps/types";
+import { cn } from "~/lib/utils";
 
 const WINDOWS = [7, 14, 30, 60, 90] as const;
 
@@ -31,30 +32,24 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+type Tab = "givers" | "requesters";
+
 function Home() {
   const [windowDays, setWindowDays] = useState(30);
-  const { data: leaderboard } = useLeaderboard(windowDays);
+  const [tab, setTab] = useState<Tab>("givers");
+  const { data: leaderboard, isPlaceholderData } = useLeaderboard(windowDays);
 
-  const giverRows = toLeaderboardRows(leaderboard.givers);
-  const requesterRows = toLeaderboardRows(leaderboard.requesters);
+  const giverRows = toLeaderboardRows(leaderboard?.givers ?? []);
+  const requesterRows = toLeaderboardRows(leaderboard?.requesters ?? []);
 
   return (
     <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
       {/* Header */}
       <header className="animate-fade-up">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-bold text-foreground text-lg tracking-tight">
-              StampHog
-            </h1>
-            <Badge
-              className="gap-1.5 border-chart-2/20 bg-chart-2/10 text-chart-2"
-              variant="outline"
-            >
-              <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-chart-2" />
-              Live
-            </Badge>
-          </div>
+          <h1 className="font-bold text-foreground text-lg tracking-tight">
+            StampHog
+          </h1>
           <Select
             onValueChange={(v) => setWindowDays(Number(v))}
             value={String(windowDays)}
@@ -84,16 +79,19 @@ function Home() {
         className="mt-6 flex animate-fade-up items-baseline gap-6 sm:gap-8"
         style={{ animationDelay: "60ms" }}
       >
-        <Stat label="stamps" value={leaderboard.totals.stamps} />
-        <Stat label="reviews" value={leaderboard.totals.events} />
-        <Stat label="PRs" value={leaderboard.totals.requests} />
+        <Stat label="stamps" value={leaderboard?.totals.stamps ?? 0} />
+        <Stat label="PRs" value={leaderboard?.totals.requests ?? 0} />
       </div>
 
       {/* Leaderboard Tabs */}
       <Tabs
-        className="mt-8 animate-fade-up"
-        defaultValue="givers"
+        className={cn(
+          "mt-8 animate-fade-up transition-opacity duration-200",
+          isPlaceholderData && "opacity-50"
+        )}
+        onValueChange={(v) => setTab(v as Tab)}
         style={{ animationDelay: "120ms" }}
+        value={tab}
       >
         <TabsList className="w-full">
           <TabsTrigger className="flex-1" value="givers">
@@ -103,20 +101,29 @@ function Home() {
             Stamp Requesters
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="givers">
-          <LeaderboardList
-            rows={giverRows}
-            scoreKey="stampsGiven"
-            tone="amber"
-          />
-        </TabsContent>
-        <TabsContent value="requesters">
-          <LeaderboardList
-            rows={requesterRows}
-            scoreKey="stampsRequested"
-            tone="teal"
-          />
-        </TabsContent>
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: 8 }}
+            key={tab}
+            transition={{ duration: 0.15 }}
+          >
+            {tab === "givers" ? (
+              <LeaderboardList
+                rows={giverRows}
+                scoreKey="stampsGiven"
+                tone="amber"
+              />
+            ) : (
+              <LeaderboardList
+                rows={requesterRows}
+                scoreKey="stampsRequested"
+                tone="teal"
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </Tabs>
 
       <Separator className="my-10 bg-border" />
