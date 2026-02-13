@@ -29,6 +29,15 @@ export async function handleSlackMessageEvent(
     });
   }
 
+  // Skip thread replies — only track base (top-level) channel messages
+  if (event.thread_ts && event.thread_ts !== event.ts) {
+    return Response.json({
+      ok: true,
+      ignored: true,
+      reason: "thread_reply",
+    });
+  }
+
   const requesterId = event.user;
   const channelId = event.channel;
   const messageTs = event.ts;
@@ -90,7 +99,19 @@ export async function handleSlackReactionEvent(
     channelId,
     messageTs,
   });
-  const requesterId = message?.user;
+
+  // conversations.history only returns top-level messages.  If the returned
+  // message timestamp doesn't match what we asked for, the reaction was on a
+  // thread reply and we got the nearest base message instead — skip it.
+  if (!message?.ts || message.ts !== messageTs) {
+    return Response.json({
+      ok: true,
+      ignored: true,
+      reason: "thread_reply",
+    });
+  }
+
+  const requesterId = message.user;
   if (!requesterId) {
     return new Response("could not resolve message author", { status: 400 });
   }
