@@ -8,8 +8,8 @@ import { cn } from "~/lib/utils";
 import type { LeaderboardRow } from "../types";
 import { Avatar } from "./avatar";
 
-type ScoreKey = "stampsGiven" | "stampsRequested";
-type Tone = "amber" | "teal";
+type ScoreKey = "stampsGiven" | "stampsRequested" | "medianTtsMs";
+type Tone = "amber" | "teal" | "violet";
 
 const podiumConfig = {
   1: {
@@ -47,6 +47,7 @@ const podiumConfig = {
 const toneBarColor = {
   amber: "bg-chart-1",
   teal: "bg-chart-3",
+  violet: "bg-chart-5",
 } as const;
 
 const WHITESPACE = /\s/;
@@ -63,11 +64,16 @@ export function LeaderboardList({
   rows,
   scoreKey,
   tone,
+  formatScore,
+  lowerIsBetter,
 }: {
   rows: LeaderboardRow[];
   scoreKey: ScoreKey;
   tone: Tone;
+  formatScore?: (value: number) => string;
+  lowerIsBetter?: boolean;
 }) {
+  const displayScore = formatScore ?? String;
   if (rows.length === 0) {
     return (
       <p className="py-16 text-center text-muted-foreground text-sm">
@@ -79,7 +85,7 @@ export function LeaderboardList({
   const podiumRows = rows.slice(0, 3);
   const listRows = rows.slice(3);
   // rows.length > 0 is guaranteed by the early return above
-  const maxScore = getScore(rows[0] as LeaderboardRow, scoreKey);
+  const bestScore = getScore(rows[0] as LeaderboardRow, scoreKey);
 
   return (
     <LayoutGroup id={`leaderboard-${scoreKey}`}>
@@ -162,13 +168,14 @@ export function LeaderboardList({
                             key={score}
                             transition={{ duration: 0.3 }}
                           >
-                            {score}
+                            {displayScore(score)}
                           </motion.span>
                         </div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {row.displayName} &middot; {score} stamps
+                      {row.displayName} &middot; {displayScore(score)}
+                      {!formatScore && " stamps"}
                     </TooltipContent>
                   </Tooltip>
                 </motion.div>
@@ -183,7 +190,10 @@ export function LeaderboardList({
             <AnimatePresence initial={false}>
               {listRows.map((row, i) => {
                 const score = getScore(row, scoreKey);
-                const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                const pct =
+                  lowerIsBetter
+                    ? score > 0 ? (bestScore / score) * 100 : 0
+                    : bestScore > 0 ? (score / bestScore) * 100 : 0;
 
                 return (
                   <motion.div
@@ -226,7 +236,7 @@ export function LeaderboardList({
                       </div>
                     </div>
                     <span className="font-mono text-muted-foreground text-sm tabular-nums">
-                      {score}
+                      {displayScore(score)}
                     </span>
                   </motion.div>
                 );
