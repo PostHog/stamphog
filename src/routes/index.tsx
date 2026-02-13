@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Calendar } from "lucide-react";
+import { Calendar, Github } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { usePostHog } from "posthog-js/react";
 import { useState } from "react";
@@ -55,6 +55,15 @@ function Home() {
   const giverRows = toLeaderboardRows(leaderboard?.givers ?? []);
   const requesterRows = toLeaderboardRows(leaderboard?.requesters ?? []);
 
+  const handleWindowChange = (days: number) => {
+    setWindowDaysLocal(days);
+    setWindowDays({ data: days });
+    posthog.capture("time_window_changed", {
+      window_days: days,
+      previous_window_days: windowDays,
+    });
+  };
+
   return (
     <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12 lg:max-w-6xl">
       {/* Header */}
@@ -71,33 +80,16 @@ function Home() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Select
-              onValueChange={(v) => {
-                const days = Number(v);
-                setWindowDaysLocal(days);
-                setWindowDays({ data: days });
-                posthog.capture("time_window_changed", {
-                  window_days: days,
-                  previous_window_days: windowDays,
-                });
-              }}
-              value={String(windowDays)}
+            <WindowSelect onChange={handleWindowChange} value={windowDays} />
+            <a
+              aria-label="View on GitHub"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              href="https://github.com/PostHog/stamphog"
+              rel="noopener noreferrer"
+              target="_blank"
             >
-              <SelectTrigger
-                className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
-                size="sm"
-              >
-                <Calendar className="size-3" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {WINDOWS.map((d) => (
-                  <SelectItem key={d} value={String(d)}>
-                    {d}-day
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Github className="size-3.5" />
+            </a>
             <ModeToggle />
           </div>
         </div>
@@ -219,5 +211,32 @@ function Stat({ value, label }: { value: number; label: string }) {
       </span>
       <span className="text-muted-foreground text-sm">{label}</span>
     </div>
+  );
+}
+
+function WindowSelect({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (days: number) => void;
+}) {
+  return (
+    <Select onValueChange={(v) => onChange(Number(v))} value={String(value)}>
+      <SelectTrigger
+        className="h-7 w-auto border-border bg-card text-muted-foreground text-xs"
+        size="sm"
+      >
+        <Calendar className="size-3" />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {WINDOWS.map((d) => (
+          <SelectItem key={d} value={String(d)}>
+            {d}-day
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
