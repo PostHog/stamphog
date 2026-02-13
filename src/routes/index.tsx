@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Separator } from "~/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
@@ -43,7 +42,7 @@ function Home() {
   const requesterRows = toLeaderboardRows(leaderboard?.requesters ?? []);
 
   return (
-    <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12 lg:max-w-6xl">
       {/* Header */}
       <header className="animate-fade-up">
         <div className="flex items-center justify-between">
@@ -83,58 +82,59 @@ function Home() {
         <Stat label="PRs" value={leaderboard?.totals.requests ?? 0} />
       </div>
 
-      {/* Leaderboard Tabs */}
-      <Tabs
-        className={cn(
-          "mt-8 animate-fade-up transition-opacity duration-200",
-          isPlaceholderData && "opacity-50"
-        )}
-        onValueChange={(v) => setTab(v as Tab)}
-        style={{ animationDelay: "120ms" }}
-        value={tab}
-      >
-        <TabsList className="w-full">
-          <TabsTrigger className="flex-1" value="givers">
-            Stamp Givers
-          </TabsTrigger>
-          <TabsTrigger className="flex-1" value="requesters">
-            Stamp Requesters
-          </TabsTrigger>
-        </TabsList>
-        <AnimatePresence initial={false} mode="wait">
-          <motion.div
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            initial={{ opacity: 0, y: 8 }}
-            key={tab}
-            transition={{ duration: 0.15 }}
-          >
-            {tab === "givers" ? (
-              <LeaderboardList
-                rows={giverRows}
-                scoreKey="stampsGiven"
-                tone="amber"
-              />
-            ) : (
-              <LeaderboardList
-                rows={requesterRows}
-                scoreKey="stampsRequested"
-                tone="teal"
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </Tabs>
+      {/* Main content: side by side on large screens */}
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-12">
+        {/* Leaderboard Tabs */}
+        <Tabs
+          className={cn(
+            "animate-fade-up transition-opacity duration-200",
+            isPlaceholderData && "opacity-50"
+          )}
+          onValueChange={(v) => setTab(v as Tab)}
+          style={{ animationDelay: "120ms" }}
+          value={tab}
+        >
+          <TabsList className="w-full">
+            <TabsTrigger className="flex-1" value="givers">
+              Stamp Givers
+            </TabsTrigger>
+            <TabsTrigger className="flex-1" value="requesters">
+              Stamp Requesters
+            </TabsTrigger>
+          </TabsList>
+          <AnimatePresence initial={false} mode="wait">
+            <motion.div
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              initial={{ opacity: 0, y: 8 }}
+              key={tab}
+              transition={{ duration: 0.15 }}
+            >
+              {tab === "givers" ? (
+                <LeaderboardList
+                  rows={giverRows}
+                  scoreKey="stampsGiven"
+                  tone="amber"
+                />
+              ) : (
+                <LeaderboardList
+                  rows={requesterRows}
+                  scoreKey="stampsRequested"
+                  tone="teal"
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </Tabs>
 
-      <Separator className="my-10 bg-border" />
-
-      {/* Recent Activity */}
-      <section>
-        <h2 className="mb-3 font-semibold text-muted-foreground/70 text-xs uppercase tracking-wider">
-          Recent Activity
-        </h2>
-        <RecentEventsList />
-      </section>
+        {/* Recent Activity */}
+        <section>
+          <h2 className="mb-3 font-semibold text-muted-foreground/70 text-xs uppercase tracking-wider">
+            Recent Activity
+          </h2>
+          <RecentEventsList />
+        </section>
+      </div>
     </div>
   );
 }

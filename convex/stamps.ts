@@ -9,8 +9,8 @@ import {
 import { runSlackBackfill } from "./slackWebhook/backfill";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_LEADERBOARD_LIMIT = 25;
-const DEFAULT_RECENT_EVENTS_LIMIT = 20;
+const DEFAULT_LEADERBOARD_LIMIT = 20;
+const DEFAULT_RECENT_EVENTS_LIMIT = 23;
 const MAX_RESULTS_LIMIT = 100;
 
 interface ActorProfile {
@@ -350,32 +350,56 @@ export const recentEvents = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = clampLimit(args.limit, DEFAULT_RECENT_EVENTS_LIMIT);
-    const [events, actorMap] = await Promise.all([
+    // Fetch more than needed from each table so we can merge and trim
+    const [stamps, requests, actorMap] = await Promise.all([
       ctx.db
         .query("stampEvents")
+        .withIndex("by_occurred_at")
+        .order("desc")
+        .take(limit),
+      ctx.db
+        .query("requests")
         .withIndex("by_occurred_at")
         .order("desc")
         .take(limit),
       getActorProfileMap(ctx),
     ]);
 
-    return events.map((event) => {
+    const stampItems = stamps.map((event) => {
       const giver = resolveActorProfile(actorMap, event.giverId);
       const requester = resolveActorProfile(actorMap, event.requesterId);
       return {
         _id: event._id,
         _creationTime: event._creationTime,
-        giverId: event.giverId,
-        requesterId: event.requesterId,
-        stampCount: event.stampCount,
+        type: "stamp" as const,
         occurredAt: event.occurredAt,
         prUrl: event.prUrl,
+        giverId: event.giverId,
         giverDisplayName: giver.displayName,
         giverImageUrl: giver.imageUrl,
+        requesterId: event.requesterId,
         requesterDisplayName: requester.displayName,
         requesterImageUrl: requester.imageUrl,
       };
     });
+
+    const requestItems = requests.map((request) => {
+      const requester = resolveActorProfile(actorMap, request.requesterId);
+      return {
+        _id: request._id,
+        _creationTime: request._creationTime,
+        type: "request" as const,
+        occurredAt: request.occurredAt,
+        prUrl: request.prUrl,
+        requesterId: request.requesterId,
+        requesterDisplayName: requester.displayName,
+        requesterImageUrl: requester.imageUrl,
+      };
+    });
+
+    return [...stampItems, ...requestItems]
+      .sort((a, b) => b.occurredAt - a.occurredAt)
+      .slice(0, limit);
   },
 });
 

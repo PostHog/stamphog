@@ -60,34 +60,11 @@ export function RecentEventsList() {
           key={ev._id}
           style={{ animationDelay: `${i * 25}ms` }}
         >
-          <Avatar fallback={ev.giverDisplayName} imageUrl={ev.giverImageUrl} />
-          <svg
-            aria-hidden="true"
-            className="h-3 w-3 shrink-0 text-muted-foreground/50"
-            fill="none"
-            viewBox="0 0 12 12"
-          >
-            <path
-              d="M2 6h8m-3-3 3 3-3 3"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
-          </svg>
-          <Avatar
-            fallback={ev.requesterDisplayName}
-            imageUrl={ev.requesterImageUrl}
-          />
-          <p className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
-            <span className="text-secondary-foreground">
-              {firstName(ev.giverDisplayName)}
-            </span>
-            {" stamped "}
-            <span className="text-secondary-foreground">
-              {firstName(ev.requesterDisplayName)}
-            </span>
-          </p>
+          {ev.type === "stamp" ? (
+            <StampEvent ev={ev} />
+          ) : (
+            <RequestEvent ev={ev} />
+          )}
           <div className="flex shrink-0 items-center gap-2.5">
             {ev.prUrl && (
               <Tooltip>
@@ -111,5 +88,70 @@ export function RecentEventsList() {
         </div>
       ))}
     </div>
+  );
+}
+
+function StampEvent({
+  ev,
+}: {
+  ev: {
+    giverDisplayName: string;
+    giverImageUrl?: string;
+    requesterDisplayName: string;
+    requesterImageUrl?: string;
+  };
+}) {
+  return (
+    <>
+      <Avatar fallback={ev.giverDisplayName} imageUrl={ev.giverImageUrl} />
+      <svg
+        aria-hidden="true"
+        className="h-3 w-3 shrink-0 text-muted-foreground/50"
+        fill="none"
+        viewBox="0 0 12 12"
+      >
+        <path
+          d="M2 6h8m-3-3 3 3-3 3"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+      </svg>
+      <Avatar
+        fallback={ev.requesterDisplayName}
+        imageUrl={ev.requesterImageUrl}
+      />
+      <p className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
+        <span className="text-secondary-foreground">
+          {firstName(ev.giverDisplayName)}
+        </span>
+        {" stamped "}
+        <span className="text-secondary-foreground">
+          {firstName(ev.requesterDisplayName)}
+        </span>
+      </p>
+    </>
+  );
+}
+
+function RequestEvent({
+  ev,
+}: {
+  ev: { requesterDisplayName: string; requesterImageUrl?: string };
+}) {
+  return (
+    <>
+      <Avatar
+        fallback={ev.requesterDisplayName}
+        imageUrl={ev.requesterImageUrl}
+      />
+      <p className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
+        <span className="text-secondary-foreground">
+          {firstName(ev.requesterDisplayName)}
+        </span>
+        {" requested a stamp"}
+      </p>
+    </>
   );
 }

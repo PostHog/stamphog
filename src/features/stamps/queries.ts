@@ -7,18 +7,12 @@ import {
 import { api } from "../../../convex/_generated/api";
 
 const DEFAULT_LEADERBOARD_WINDOW_DAYS = 30;
-const LEADERBOARD_LIMIT = 25;
 
 export function leaderboardQuery(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
-  return convexQuery(api.stamps.leaderboard, {
-    windowDays,
-    limit: LEADERBOARD_LIMIT,
-  });
+  return convexQuery(api.stamps.leaderboard, { windowDays });
 }
 
-export const recentStampEventsQuery = convexQuery(api.stamps.recentEvents, {
-  limit: 20,
-});
+export const recentStampEventsQuery = convexQuery(api.stamps.recentEvents, {});
 
 export function useLeaderboard(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
   return useQuery({
