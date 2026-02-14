@@ -19,10 +19,13 @@ import {
 } from "~/components/ui/tooltip";
 import { LeaderboardList } from "~/features/stamps/components/leaderboard-list";
 import { RecentEventsList } from "~/features/stamps/components/recent-events-list";
+import { formatTts } from "~/features/stamps/format";
 import {
   leaderboardQuery,
   recentStampEventsQuery,
+  ttsLeaderboardQuery,
   useLeaderboard,
+  useTtsLeaderboard,
 } from "~/features/stamps/queries";
 import { toLeaderboardRows } from "~/features/stamps/types";
 import { cn } from "~/lib/utils";
@@ -36,6 +39,7 @@ export const Route = createFileRoute("/")({
     const windowDays = await getWindowDays();
     await Promise.all([
       opts.context.queryClient.ensureQueryData(leaderboardQuery(windowDays)),
+      opts.context.queryClient.ensureQueryData(ttsLeaderboardQuery(windowDays)),
       opts.context.queryClient.ensureQueryData(recentStampEventsQuery),
     ]);
     return { windowDays };
@@ -43,7 +47,7 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-type Tab = "givers" | "requesters";
+type Tab = "givers" | "requesters" | "tts";
 
 function Home() {
   const posthog = usePostHog();
@@ -51,9 +55,12 @@ function Home() {
   const [windowDays, setWindowDaysLocal] = useState(initialWindowDays);
   const [tab, setTab] = useState<Tab>("givers");
   const { data: leaderboard, isPlaceholderData } = useLeaderboard(windowDays);
+  const { data: ttsLeaderboard, isPlaceholderData: isTtsPlaceholder } =
+    useTtsLeaderboard(windowDays);
 
   const giverRows = toLeaderboardRows(leaderboard?.givers ?? []);
   const requesterRows = toLeaderboardRows(leaderboard?.requesters ?? []);
+  const ttsRows = toLeaderboardRows(ttsLeaderboard?.stampers ?? []);
 
   const handleWindowChange = (days: number) => {
     setWindowDaysLocal(days);
@@ -145,7 +152,7 @@ function Home() {
         <Tabs
           className={cn(
             "animate-fade-up transition-opacity duration-200",
-            isPlaceholderData && "opacity-50"
+            (isPlaceholderData || isTtsPlaceholder) && "opacity-50"
           )}
           onValueChange={(v) => {
             const newTab = v as Tab;
@@ -165,6 +172,9 @@ function Home() {
             <TabsTrigger className="flex-1" value="requesters">
               Stamp Requesters
             </TabsTrigger>
+            <TabsTrigger className="flex-1" value="tts">
+              Fastest Stampers
+            </TabsTrigger>
           </TabsList>
           <AnimatePresence initial={false} mode="wait">
             <motion.div
@@ -180,11 +190,19 @@ function Home() {
                   scoreKey="stampsGiven"
                   tone="amber"
                 />
-              ) : (
+              ) : tab === "requesters" ? (
                 <LeaderboardList
                   rows={requesterRows}
                   scoreKey="stampsRequested"
                   tone="teal"
+                />
+              ) : (
+                <LeaderboardList
+                  rows={ttsRows}
+                  scoreKey="medianTtsMs"
+                  tone="violet"
+                  formatScore={formatTts}
+                  lowerIsBetter
                 />
               )}
             </motion.div>

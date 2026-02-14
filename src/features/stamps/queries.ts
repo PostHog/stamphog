@@ -12,11 +12,22 @@ export function leaderboardQuery(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
   return convexQuery(api.stamps.leaderboard, { windowDays });
 }
 
+export function ttsLeaderboardQuery(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
+  return convexQuery(api.stamps.ttsLeaderboard, { windowDays });
+}
+
 export const recentStampEventsQuery = convexQuery(api.stamps.recentEvents, {});
 
 export function useLeaderboard(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
   return useQuery({
     ...leaderboardQuery(windowDays),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTtsLeaderboard(windowDays = DEFAULT_LEADERBOARD_WINDOW_DAYS) {
+  return useQuery({
+    ...ttsLeaderboardQuery(windowDays),
     placeholderData: keepPreviousData,
   });
 }

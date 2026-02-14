@@ -35,6 +35,14 @@ export interface RequesterAggregate {
   approvalsReceived: number;
 }
 
+export interface TtsAggregate {
+  actorId: string;
+  displayName: string;
+  imageUrl?: string;
+  medianTtsMs: number;
+  stampCount: number;
+}
+
 function clampLimit(value: number | undefined, fallback: number) {
   return Math.max(
     1,
@@ -59,6 +67,18 @@ function sortByRequestedStamps(a: RequesterAggregate, b: RequesterAggregate) {
     b.approvalsReceived - a.approvalsReceived ||
     b.requestsPosted - a.requestsPosted
   );
+}
+
+function sortByFastestTts(a: TtsAggregate, b: TtsAggregate) {
+  return a.medianTtsMs - b.medianTtsMs || b.stampCount - a.stampCount;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]!
+    : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 async function upsertActorProfile(
@@ -342,6 +362,94 @@ export const leaderboard = query({
         .filter((requester) => requester.stampsRequested > 0)
         .sort(sortByRequestedStamps)
         .slice(0, limit),
+    };
+  },
+});
+
+const MIN_TTS_STAMP_COUNT = 2;
+
+export const ttsLeaderboard = query({
+  args: { windowDays: v.optional(v.number()), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = clampLimit(args.limit, DEFAULT_LEADERBOARD_LIMIT);
+    const since = getSinceTimestamp(args.windowDays);
+
+    const [stampEvents, requests, actorMap] = await Promise.all([
+      since
+        ? ctx.db
+            .query("stampEvents")
+            .withIndex("by_occurred_at", (q) => q.gte("occurredAt", since))
+            .collect()
+        : ctx.db.query("stampEvents").collect(),
+      since
+        ? ctx.db
+            .query("requests")
+            .withIndex("by_occurred_at", (q) => q.gte("occurredAt", since))
+            .collect()
+        : ctx.db.query("requests").collect(),
+      getActorProfileMap(ctx),
+    ]);
+
+    // Build map of (channelId + prUrl) -> earliest request occurredAt
+    const requestTimeMap = new Map<string, { occurredAt: number; requesterId: string }>();
+    for (const req of requests) {
+      const key = `${req.channelId}:${req.prUrl}`;
+      const existing = requestTimeMap.get(key);
+      if (!existing || req.occurredAt < existing.occurredAt) {
+        requestTimeMap.set(key, { occurredAt: req.occurredAt, requesterId: req.requesterId });
+      }
+    }
+
+    // Sort stamps by occurredAt ascending for deduplication (earliest first)
+    const sortedStamps = [...stampEvents].sort((a, b) => a.occurredAt - b.occurredAt);
+
+    // Collect TTS values per giver, deduplicating per giver+request pair
+    const giverTtsMap = new Map<string, number[]>();
+    const seenGiverRequest = new Set<string>();
+
+    for (const stamp of sortedStamps) {
+      if (!stamp.prUrl) continue;
+
+      const requestKey = `${stamp.channelId}:${stamp.prUrl}`;
+      const request = requestTimeMap.get(requestKey);
+      if (!request) continue;
+
+      // Exclude self-stamps
+      if (stamp.giverId === request.requesterId) continue;
+
+      // Deduplicate: only count the earliest stamp per giver per request
+      const dedupeKey = `${stamp.giverId}:${requestKey}`;
+      if (seenGiverRequest.has(dedupeKey)) continue;
+      seenGiverRequest.add(dedupeKey);
+
+      const ttsMs = stamp.occurredAt - request.occurredAt;
+      // Skip negative TTS (data anomalies)
+      if (ttsMs < 0) continue;
+
+      const values = giverTtsMap.get(stamp.giverId) ?? [];
+      values.push(ttsMs);
+      giverTtsMap.set(stamp.giverId, values);
+    }
+
+    // Build aggregates, filtering by minimum threshold
+    const stampers: TtsAggregate[] = [];
+    for (const [actorId, ttsValues] of giverTtsMap) {
+      if (ttsValues.length < MIN_TTS_STAMP_COUNT) continue;
+
+      const profile = resolveActorProfile(actorMap, actorId);
+      stampers.push({
+        actorId,
+        displayName: profile.displayName,
+        imageUrl: profile.imageUrl,
+        medianTtsMs: median(ttsValues),
+        stampCount: ttsValues.length,
+      });
+    }
+
+    return {
+      generatedAt: Date.now(),
+      windowDays: args.windowDays ?? null,
+      stampers: stampers.sort(sortByFastestTts).slice(0, limit),
     };
   },
 });
