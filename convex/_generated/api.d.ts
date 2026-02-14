@@ -9,6 +9,7 @@
  */
 
 import type * as http from "../http.js";
+import type * as seed from "../seed.js";
 import type * as slack from "../slack.js";
 import type * as slackWebhook_backfill from "../slackWebhook/backfill.js";
 import type * as slackWebhook_handlers from "../slackWebhook/handlers.js";
@@ -24,6 +25,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   http: typeof http;
+  seed: typeof seed;
   slack: typeof slack;
   "slackWebhook/backfill": typeof slackWebhook_backfill;
   "slackWebhook/handlers": typeof slackWebhook_handlers;

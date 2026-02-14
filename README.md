@@ -31,6 +31,20 @@ npx convex dev --once
 pnpm dev
 ```
 
+### Seed Local Test Data (No Slack Required)
+
+Contributors can load deterministic Faker-generated fixture data directly into Convex:
+
+```bash
+# Keep existing data, replace prior fixture rows
+npx convex run seed:seedTestData '{}'
+
+# Optional: wipe all existing data first
+npx convex run seed:seedTestData '{"resetExistingData":true}'
+```
+
+This creates sample actors, PR requests, and stamp events so the leaderboard and recent events UI are populated immediately.
+
 ## 💬 Slack Setup
 
 1. Set Event Subscriptions request URL to:
@@ -66,13 +80,13 @@ Import existing qualifying reactions from Slack channels:
 
 ```bash
 # Single channel
-npx convex run stamps.backfillChannel '{"channelId":"C0123456789"}'
+npx convex run stamps:backfillChannel '{"channelId":"C0123456789"}'
 
 # Multiple channels
-npx convex run stamps.backfillChannels '{"channelIds":["C0123456789","C0987654321"]}'
+npx convex run stamps:backfillChannels '{"channelIds":["C0123456789","C0987654321"]}'
 
 # With options
-npx convex run stamps.backfillChannel '{"channelId":"C0123456789","oldestTs":"1704067200","maxMessages":10000}'
+npx convex run stamps:backfillChannel '{"channelId":"C0123456789","oldestTs":"1704067200","maxMessages":10000}'
 ```
 
 - `oldestTs` is a Slack timestamp in seconds (`"1704067200"` = 2024-01-01 UTC)
@@ -85,7 +99,7 @@ npx convex run stamps.backfillChannel '{"channelId":"C0123456789","oldestTs":"17
 Delete data older than 90 days and clean up orphaned actors:
 
 ```bash
-npx convex run stamps.pruneDataOlderThanRetentionWindow '{}'
+npx convex run stamps:pruneDataOlderThanRetentionWindow '{}'
 ```
 
 ## 🛠️ Development
